@@ -1,5 +1,7 @@
 ---
 import "../styles/global.css";
+const directusUrl =
+    import.meta.env.PUBLIC_DIRECTUS_URL || "http://localhost:8055";
 
 // Cek token, jika ada lempar ke dashboard
 const token = Astro.cookies.get("directus_token")?.value;
@@ -126,7 +128,7 @@ if (token) {
         </div>
 
         <!-- Logika JS -->
-        <script is:inline>
+        <script is:inline define:vars={{ directusUrl }}>
             document
                 .getElementById("loginForm")
                 .addEventListener("submit", async (e) => {
@@ -143,7 +145,7 @@ if (token) {
 
                     try {
                         // Tembak API auth Directus
-                        const baseUrl = "http://localhost:8055";
+                        const baseUrl = directusUrl;
 
                         const response = await fetch(`${baseUrl}/auth/login`, {
                             method: "POST",
