@@ -1,0 +1,253 @@
+---
+import { getWithAuth } from "../../lib/api";
+
+const token = Astro.cookies.get("directus_token")?.value || "";
+const start = Astro.url.searchParams.get("start") || "";
+const end = Astro.url.searchParams.get("end") || "";
+
+let dateFilter = "";
+if (start && end) {
+    // Jika ada rentang tanggal, filter di antara tanggal tersebut
+    dateFilter = `[_between]=[${start},${end}]`;
+}
+
+const hariIni = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+}).format(new Date());
+
+let pengeluaran = [];
+let gaji = [];
+let kasbon = [];
+let restok = [];
+
+try {
+    // 1. Siapkan format filter tanggal yang aman untuk masing-masing tabel
+    // Directus menggunakan format: [_between]=2023-01-01,2023-01-31
+    const filterPengeluaran = start && end ? `?filter[tanggal_pengeluaran][_between]=${start},${end}` : "?limit=-1";
+    const filterGaji = start && end ? `&filter[periode_mulai][_between]=${start},${end}` : "";
+    const filterKasbon = start && end ? `&filter[tanggal][_between]=${start},${end}` : "";
+    const filterRestok = start && end ? `&filter[tanggal_pembelian][_between]=${start},${end}` : "";
+    const filterOperasional = start && end ? `&filter[tanggal][_between]=${start},${end}` : "";
+
+    // 2. Fetch Data Pengeluaran Murni
+    const resPengeluaran = await getWithAuth(`/items/pengeluaran${filterPengeluaran}`, token);
+    let dataPengeluaran = resPengeluaran.data.data || [];
+
+    // 3. Fetch Data Operasional (Untuk Biaya Tetap Harian)
+    const resOperasional = await getWithAuth(`/items/operasional_harian?filter[status_buka][_eq]=buka${filterOperasional}`, token);
+    let dataOperasional = resOperasional.data.data || [];
+
+    // 4. Mapping Biaya Tetap Harian persis seperti di UI (index.astro)
+    let dataBiayaTetap = dataOperasional.map((op) => ({
+        id: `fix-${op.id}`,
+        tanggal_pengeluaran: op.tanggal,
+        keterangan: "Biaya Tetap Harian (Snapshot)",
+        kategori: "biaya_tetap",
+        sumber_dana: "biaya_tetap_harian",
+        nominal: op.biaya_tetap_snapshot || 0,
+        modal_terjual: 0
+    }));
+
+    // 5. Gabungkan Pengeluaran & Biaya Tetap lalu urutkan
+    pengeluaran = [...dataPengeluaran, ...dataBiayaTetap];
+    pengeluaran.sort((a, b) => new Date(b.tanggal_pengeluaran) - new Date(a.tanggal_pengeluaran));
+
+    // 6. Fetch Data Lainnya (Gaji, Kasbon, Restok)
+    const resGaji = await getWithAuth(`/items/riwayat_penggajian?fields=*,mekanik_id.nama_mekanik${filterGaji}`, token);
+    gaji = resGaji.data.data || [];
+
+    const resKasbon = await getWithAuth(`/items/kasbon_mekanik?fields=*,mekanik_id.nama_mekanik${filterKasbon}`, token);
+    kasbon = resKasbon.data.data || [];
+
+    const resRestok = await getWithAuth(`/items/pembelian_stok?fields=*,detail_pembelian_stok.*,detail_pembelian_stok.produk_id.nama_produk${filterRestok}`, token);
+    restok = resRestok.data.data || [];
+
+} catch (e) {
+    console.error("Gagal menarik data ekspor:", e.message);
+}
+---
+
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <title>Ekspor Laporan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+<!-- UI Minimalis -->
+<body class="bg-white flex items-center justify-center h-screen font-sans text-slate-800 selection:bg-slate-100">
+    
+    <div class="text-center">
+        <!-- Spinner Minimalis -->
+        <svg id="loadingIcon" class="animate-spin h-6 w-6 text-slate-800 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <h1 class="text-sm font-semibold tracking-wide uppercase text-slate-600" id="statusTitle">Menyiapkan Dokumen</h1>
+    </div>
+
+    <script is:inline define:vars={{ pengeluaran, gaji, kasbon, restok, start, end }}>
+        
+        window.addEventListener('load', function() {
+            try {
+                // Variabel untuk kalkulasi rekapitulasi
+                let totalsByCategory = {};
+                let totalKotor = 0;
+                let totalModalTerjual = 0;
+
+                // 1. Siapkan Data Sheet 1: Pengeluaran Umum
+                const dataUmum = (pengeluaran || []).map(p => {
+                    const kat = p.kategori || "Lainnya";
+                    const nom = p.nominal || 0;
+                    const mod = p.modal_terjual || 0;
+
+                    // Kalkulasi ke total
+                    if (!totalsByCategory[kat]) totalsByCategory[kat] = 0;
+                    totalsByCategory[kat] += nom;
+                    totalKotor += nom;
+                    totalModalTerjual += mod;
+
+                    return {
+                        "Tanggal": p.tanggal_pengeluaran || "-",
+                        "Kategori": kat,
+                        "Keterangan": p.keterangan || "-",
+                        "Sumber Dana": p.sumber_dana === "transfer_bank" ? "Transfer Bank" : "Laci Kasir",
+                        "Nominal Keluar (Rp)": nom,
+                        "Ulakan Terjual (Rp)": mod
+                    };
+                });
+
+                // Tambahkan Baris Kosong sebagai pemisah
+                dataUmum.push({"Tanggal": "", "Kategori": "", "Keterangan": "", "Sumber Dana": "", "Nominal Keluar (Rp)": "", "Ulakan Terjual (Rp)": ""});
+                
+                // Tambahkan Rincian per Kategori
+                dataUmum.push({
+                    "Tanggal": "", "Kategori": "", 
+                    "Keterangan": "--- REKAPITULASI PER KATEGORI ---", 
+                    "Sumber Dana": "", "Nominal Keluar (Rp)": "", "Ulakan Terjual (Rp)": ""
+                });
+
+                for (const [kat, total] of Object.entries(totalsByCategory)) {
+                    dataUmum.push({
+                        "Tanggal": "", "Kategori": "", 
+                        "Keterangan": `Total ${kat.toUpperCase()}`, 
+                        "Sumber Dana": "", 
+                        "Nominal Keluar (Rp)": total, 
+                        "Ulakan Terjual (Rp)": ""
+                    });
+                }
+
+                // Tambahkan Baris Kosong pemisah lagi
+                dataUmum.push({"Tanggal": "", "Kategori": "", "Keterangan": "", "Sumber Dana": "", "Nominal Keluar (Rp)": "", "Ulakan Terjual (Rp)": ""});
+
+                // Tambahkan Total Akhir (Kotor, Modal Terjual, Bersih)
+                dataUmum.push({
+                    "Tanggal": "", "Kategori": "", 
+                    "Keterangan": "TOTAL PENGELUARAN KOTOR", 
+                    "Sumber Dana": "", 
+                    "Nominal Keluar (Rp)": totalKotor, 
+                    "Ulakan Terjual (Rp)": ""
+                });
+                
+                dataUmum.push({
+                    "Tanggal": "", "Kategori": "", 
+                    "Keterangan": "TOTAL ULAKAN TERJUAL", 
+                    "Sumber Dana": "", 
+                    "Nominal Keluar (Rp)": "", 
+                    "Ulakan Terjual (Rp)": totalModalTerjual
+                });
+
+                dataUmum.push({
+                    "Tanggal": "", "Kategori": "", 
+                    "Keterangan": "PENGELUARAN BERSIH (Kotor - Ulakan Terjual)", 
+                    "Sumber Dana": "", 
+                    "Nominal Keluar (Rp)": totalKotor - totalModalTerjual, 
+                    "Ulakan Terjual (Rp)": ""
+                });
+
+                // 2. Siapkan Data Sheet 2: Rincian Gaji & Komisi
+                const dataGaji = (gaji || []).map(g => ({
+                    "Mekanik": g.mekanik_id?.nama_mekanik || "-",
+                    "Periode": `${g.periode_mulai || '-'} s.d ${g.periode_selesai || '-'}`,
+                    "Deskripsi & Potongan": g.deskripsi || "-",
+                    "Total THP Bersih (Rp)": g.nominal_thp || 0
+                }));
+
+                // 3. Siapkan Data Sheet 3: Rincian Kasbon
+                const dataKasbon = (kasbon || []).map(k => ({
+                    "Tanggal": k.tanggal || "-",
+                    "Mekanik": k.mekanik_id?.nama_mekanik || "-",
+                    "Keterangan": k.keterangan || "-",
+                    "Sumber Dana": k.sumber_dana === "transfer_bank" ? "Transfer Bank" : "Laci Kasir",
+                    "Nominal Pinjaman (Rp)": k.nominal || 0,
+                    "Status": k.status_potong === "lunas_gajian" ? "Lunas (Dipotong Gaji)" : "Belum Lunas"
+                }));
+
+                // 4. Siapkan Data Sheet 4: Rincian Restok Grosir
+                const dataRestok = [];
+                if (restok && Array.isArray(restok)) {
+                    restok.forEach(nota => {
+                        if (nota && nota.detail_pembelian_stok && Array.isArray(nota.detail_pembelian_stok)) {
+                            nota.detail_pembelian_stok.forEach(item => {
+                                dataRestok.push({
+                                    "Tgl Nota": nota.tanggal_pembelian || "-",
+                                    "Nama Barang": item.produk_id?.nama_produk || "-",
+                                    "Qty Masuk": item.qty_masuk || 0,
+                                    "H. Modal Baru/pcs (Rp)": item.harga_modal_baru || 0,
+                                    "H. Jual Baru/pcs (Rp)": item.harga_jual_baru || 0,
+                                    "Total Biaya Nota (Rp)": nota.total_biaya || 0
+                                });
+                            });
+                        }
+                    });
+                }
+
+                // 5. Rakit menjadi File Excel (Workbook)
+                const wb = XLSX.utils.book_new();
+
+                const appendSheet = (dataArray, sheetName) => {
+                    const finalData = dataArray.length > 0 ? dataArray : [{"Info": "Tidak ada data pada periode ini"}];
+                    const ws = XLSX.utils.json_to_sheet(finalData);
+                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                };
+
+                appendSheet(dataUmum, "Pengeluaran Umum");
+                appendSheet(dataGaji, "Rincian Gaji");
+                appendSheet(dataKasbon, "Rincian Kasbon");
+                appendSheet(dataRestok, "Detail Restok Barang");
+
+                // 6. Nama file & Eksekusi Download
+                const periodeTxt = start && end ? `${start}_sd_${end}` : 'Semua_Waktu';
+                const fileName = `Laporan_Pengeluaran_${periodeTxt}.xlsx`;
+                
+                XLSX.writeFile(wb, fileName);
+
+                // 7. Ubah UI menandakan sukses
+                document.getElementById('statusTitle').innerText = "SELESAI DIUNDUH";
+                document.getElementById('loadingIcon').outerHTML = `
+                    <svg class="h-6 w-6 text-emerald-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                `;
+
+                // Kembali ke halaman sebelumnya
+                setTimeout(() => {
+                    window.location.href = "/pengeluaran";
+                }, 1000);
+
+            } catch (error) {
+                console.error("Error Excel:", error);
+                document.getElementById('statusTitle').innerText = "TERJADI KESALAHAN";
+                document.getElementById('statusTitle').classList.replace('text-slate-600', 'text-red-500');
+                
+                setTimeout(() => {
+                    window.location.href = "/pengeluaran";
+                }, 2000);
+            }
+        });
+    </script>
+</body>
+</html>

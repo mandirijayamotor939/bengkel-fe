@@ -1,0 +1,255 @@
+---
+// src/pages/penggajian/absensi.astro
+import Layout from "../../layouts/Layout.astro";
+import { getWithAuth } from "../../lib/api";
+
+const token = Astro.cookies.get("directus_token")?.value;
+
+let listMekanik = [];
+let dataAbsensi = [];
+let isError = false;
+
+// 1. DAPATKAN TANGGAL HARI INI SPESIFIK WIB (YYYY-MM-DD)
+// Kita taruh paling atas agar bisa dipakai untuk default bulan & input kalender
+const hariIniWIB = new Intl.DateTimeFormat('en-CA', { 
+    timeZone: 'Asia/Jakarta', 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit' 
+}).format(new Date());
+
+const hariIni = hariIniWIB; // Gunakan ini untuk form tanggal HTML
+
+// 2. AMBIL FILTER BULAN DARI URL
+const url = new URL(Astro.request.url);
+let selectedBulan = url.searchParams.get("bulan");
+
+if (!selectedBulan) {
+    // Potong "YYYY-MM" dari hariIniWIB yang sudah pasti akurat
+    selectedBulan = hariIniWIB.substring(0, 7); 
+}
+
+// 3. HITUNG JUMLAH HARI DALAM BULAN
+const [yearStr, monthStr] = selectedBulan.split('-');
+const year = parseInt(yearStr);
+const month = parseInt(monthStr);
+
+const daysInMonth = new Date(year, month, 0).getDate(); 
+
+const arrayHari = Array.from({ length: daysInMonth }, (_, i) => {
+    const d = String(i + 1).padStart(2, '0');
+    return `${selectedBulan}-${d}`;
+});
+
+// 4. TANGGAL AWAL & AKHIR BULAN UNTUK FILTER DIRECTUS
+const tglAwal = `${selectedBulan}-01`;
+const tglAkhir = `${selectedBulan}-${String(daysInMonth).padStart(2, '0')}`;
+
+try {
+    // Tarik data menggunakan getWithAuth dan token
+    const resMekanik = await getWithAuth("/items/mekanik?sort=nama_mekanik", token);
+    listMekanik = resMekanik.data.data || [];
+
+    // Tarik data absensi menggunakan getWithAuth dan token
+    const resAbsensi = await getWithAuth(`/items/absensi_mekanik?filter[tanggal][_gte]=${tglAwal}&filter[tanggal][_lte]=${tglAkhir}&limit=-1`, token);
+    dataAbsensi = resAbsensi.data.data || [];
+} catch (error) {
+    console.error("Gagal menarik data:", error.response?.data || error.message);
+    isError = true;
+}
+
+// 5. HELPER PENGECEKAN STATUS ABSENSI
+function getStatusAbsen(mekanikId, tanggal) {
+    const absen = dataAbsensi.find(a => {
+        // Ambil ID mekanik baik berupa integer atau object M2O
+        const idMekanikInDb = typeof a.mekanik_id === 'object' ? a.mekanik_id?.id : a.mekanik_id;
+        return parseInt(idMekanikInDb) === parseInt(mekanikId) && a.tanggal === tanggal;
+    });
+    
+    if (!absen) return "";
+    return absen.status === "hadir" ? "✅" : "❌";
+}
+---
+
+<Layout title="Absensi & Kalender Mekanik">
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        
+        <div class="mb-8">
+            <h1 class="text-3xl font-black text-slate-800 tracking-tight">Kalender & Absensi Mekanik</h1>
+            <p class="text-slate-500 mt-1">Pantau riwayat kehadiran bulanan dan catat absensi harian mekanik.</p>
+        </div>
+
+        {isError && (
+            <div class="bg-red-50 text-red-700 p-4 rounded-xl mb-6">
+                Terjadi kesalahan saat memuat data dari database. Pastikan backend Directus aktif.
+            </div>
+        )}
+
+        <div class="flex flex-col gap-8">
+            
+            {/* BAGIAN ATAS: FORM INPUT ABSENSI HARIAN */}
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-indigo-50 border-b border-indigo-100 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h2 class="text-lg font-black text-indigo-900 mb-1">Input Absensi Baru</h2>
+                        <p class="text-sm text-indigo-700">Catat absensi untuk hari tertentu ke dalam database.</p>
+                    </div>
+                    <input 
+                        type="date" 
+                        id="tanggalAbsensi" 
+                        value={hariIni}
+                        class="px-4 py-3 rounded-xl border border-indigo-200 focus:ring-2 focus:ring-indigo-500 outline-none text-indigo-900 font-bold bg-white cursor-pointer"
+                        required
+                    />
+                </div>
+                
+                <form id="formAbsensi" class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                        {listMekanik.length === 0 ? (
+                            <p class="text-sm text-slate-500 italic col-span-full">Belum ada data mekanik terdaftar.</p>
+                        ) : (
+                            listMekanik.map((mekanik) => {
+                                // CARI STATUS HARI INI DARI DATABASE AGAR DROPDOWN OTOMATIS SESUAI
+                                const absenHariIni = dataAbsensi.find(a => {
+                                    const idDb = typeof a.mekanik_id === 'object' ? a.mekanik_id?.id : a.mekanik_id;
+                                    return idDb === mekanik.id && a.tanggal === hariIni;
+                                });
+                                const statusSaatIni = absenHariIni ? absenHariIni.status : "hadir";
+
+                                return (
+                                    <div class="baris-mekanik flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100" data-id={mekanik.id}>
+                                        <span class="font-bold text-slate-700">{mekanik.nama_mekanik}</span>
+                                        <select class="input-status px-3 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold cursor-pointer bg-white">
+                                            <option value="hadir" selected={statusSaatIni === 'hadir'} class="text-green-600">Hadir</option>
+                                            <option value="alfa" selected={statusSaatIni === 'alfa'} class="text-red-600">Alfa</option>
+                                        </select>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit" id="btnSimpan" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-xl font-black shadow-lg shadow-indigo-200 transition flex items-center gap-2">
+                            <i class="fa-solid fa-floppy-disk"></i> Simpan Absensi
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {/* BAGIAN BAWAH: PAPAN KALENDER BULANAN */}
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden p-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <h2 class="text-lg font-black text-slate-800 flex items-center gap-2">
+                        <i class="fa-regular fa-calendar-days text-indigo-500"></i> Kalender Rekap Bulanan
+                    </h2>
+                    
+                    <form method="GET" class="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                        <label class="text-sm font-bold text-slate-600 pl-2">Filter Bulan:</label>
+                        <input 
+                            type="month" 
+                            name="bulan" 
+                            value={selectedBulan} 
+                            onchange="this.form.submit()" 
+                            class="px-3 py-2 rounded-lg border border-slate-300 outline-none font-bold text-slate-800 bg-white cursor-pointer"
+                        />
+                    </form>
+                </div>
+                
+                <div class="overflow-x-auto pb-4">
+                    <table class="w-full text-center text-sm border-collapse min-w-[1000px]">
+                        <thead class="bg-slate-50 text-xs font-black text-slate-500">
+                            <tr>
+                                <th class="px-4 py-3 text-left border border-slate-200 sticky left-0 bg-slate-50 z-10 w-48 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Nama Mekanik</th>
+                                {arrayHari.map((tgl, index) => (
+                                    <th class="px-1 py-3 border border-slate-200 w-8">{index + 1}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {listMekanik.map(mekanik => (
+                                <tr class="hover:bg-slate-50 transition group">
+                                    <td class="px-4 py-3 text-left font-bold text-slate-700 border border-slate-200 sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                        {mekanik.nama_mekanik}
+                                    </td>
+                                    {arrayHari.map(tgl => (
+                                        <td class="px-1 py-3 border border-slate-200 text-base">
+                                            {getStatusAbsen(mekanik.id, tgl) || <span class="text-slate-200">-</span>}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="mt-4 text-xs font-bold text-slate-500 flex gap-6 bg-slate-50 p-4 rounded-xl border border-slate-200 inline-flex">
+                    <span><span class="text-base mr-1">✅</span> Hadir</span>
+                    <span><span class="text-base mr-1">❌</span> Alfa</span>
+                    <span><span class="text-base text-slate-300 mr-1">-</span> Belum Ada Data</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</Layout>
+
+<script is:inline>
+    document.getElementById('formAbsensi').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const tanggal = document.getElementById('tanggalAbsensi').value;
+        const barisMekanik = document.querySelectorAll('.baris-mekanik');
+        const dataAbsensi = [];
+
+        barisMekanik.forEach(row => {
+            const mekanikId = row.getAttribute('data-id');
+            const status = row.querySelector('.input-status').value;
+            
+            if (mekanikId) {
+                // Uang makan dihapus dari sini karena dikelola Directus Flow
+                dataAbsensi.push({
+                    tanggal: tanggal,
+                    mekanik_id: parseInt(mekanikId),
+                    status: status
+                });
+            }
+        });
+
+        if (dataAbsensi.length === 0) return;
+
+        const btn = document.getElementById('btnSimpan');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...`;
+        btn.disabled = true;
+
+        try {
+            const response = await fetch('/api/simpan-absensi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ absensi: dataAbsensi })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert("Sukses! Data absensi tersimpan.");
+                
+                const tanggalInput = new Date(tanggal);
+                const year = tanggalInput.getFullYear();
+                const month = String(tanggalInput.getMonth() + 1).padStart(2, '0');
+                
+                window.location.href = `?bulan=${year}-${month}`; 
+            } else {
+                alert("Gagal: " + (result.message || "Terjadi kesalahan server."));
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        } catch (error) {
+            alert("Terjadi kesalahan jaringan.");
+            console.error(error);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+</script>

@@ -1,0 +1,133 @@
+---
+// src/pages/produk/baru.astro
+import Layout from "../../layouts/Layout.astro";
+---
+
+<Layout title="Tambah Produk Baru">
+    <div class="max-w-3xl mx-auto px-4 py-8">
+        
+        {/* Navigasi Kembali */}
+        <div class="mb-6">
+            <a href="/produk" class="text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-2 text-sm transition">
+                <i class="fa-solid fa-arrow-left"></i> Kembali ke Katalog
+            </a>
+        </div>
+
+        {/* Header */}
+        <div class="mb-8">
+            <h1 class="text-3xl font-black text-slate-800 tracking-tight">Tambah Produk Baru</h1>
+            <p class="text-slate-500 mt-1">Masukkan detail sparepart atau barang baru ke dalam sistem.</p>
+        </div>
+
+        {/* Form Card */}
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
+            <form id="formProduk" class="space-y-6">
+                
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">Nama Produk <span class="text-red-500">*</span></label>
+                    <input 
+                        type="text" 
+                        id="namaProduk" 
+                        placeholder="Contoh: Oli Yamalube Sport 1L" 
+                        class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition"
+                        required
+                    />
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Stok Awal (Qty)</label>
+                        <input 
+                            type="number" 
+                            id="stokQty" 
+                            placeholder="0"
+                            min="0"
+                            class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition"
+                        />
+                        <p class="text-xs text-slate-400 mt-2">Biarkan 0 jika barang belum tersedia secara fisik.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-100 pt-6">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Harga Modal (Rp) <span class="text-red-500">*</span></label>
+                        <input 
+                            type="number" 
+                            id="hargaModal" 
+                            placeholder="Contoh: 45000"
+                            min="0"
+                            class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Harga Jual (Rp) <span class="text-red-500">*</span></label>
+                        <input 
+                            type="number" 
+                            id="hargaJual" 
+                            placeholder="Contoh: 55000"
+                            min="0"
+                            class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition"
+                            required
+                        />
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                    <a href="/produk" class="px-6 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition">
+                        Batal
+                    </a>
+                    <button type="submit" id="btnSimpan" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-sm transition inline-flex items-center gap-2">
+                        <i class="fa-solid fa-save"></i> Simpan Produk
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</Layout>
+
+<script is:inline>
+    document.getElementById('formProduk').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const namaProduk = document.getElementById('namaProduk').value;
+        const stokQty = document.getElementById('stokQty').value;
+        const hargaModal = document.getElementById('hargaModal').value;
+        const hargaJual = document.getElementById('hargaJual').value;
+
+        const btn = document.getElementById('btnSimpan');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...`;
+        btn.disabled = true;
+
+        try {
+            const response = await fetch('/api/tambah-produk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    nama_produk: namaProduk,
+                    stok_qty: stokQty ? parseInt(stokQty) : 0,
+                    harga_modal: parseInt(hargaModal),
+                    harga_jual: parseInt(hargaJual)
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert("Sukses! " + result.message);
+                window.location.href = "/produk"; // Kembali ke halaman katalog jika sukses
+            } else {
+                alert("Gagal: " + result.message);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        } catch (error) {
+            alert("Terjadi kesalahan jaringan atau server.");
+            console.error(error);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+</script>

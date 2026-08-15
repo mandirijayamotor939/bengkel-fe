@@ -1,0 +1,320 @@
+---
+// src/pages/pengeluaran/[id].astro
+import Layout from "../../layouts/Layout.astro";
+import { getWithAuth } from "../../lib/api";
+
+const { id } = Astro.params;
+const token = Astro.cookies.get("directus_token")?.value || "";
+
+let detail = null;
+let detailRestok = [];
+let detailUlakan = [];
+let detailGaji = null;
+let detailKasbon = null;
+let isError = false;
+
+try {
+    // 1. Tarik Data Utama
+    const res = await getWithAuth(`/items/pengeluaran/${id}`, token);
+    detail = res.data.data;
+    
+    if (!detail) {
+        isError = true;
+    } else {
+        // A. KATEGORI RESTOK
+        if (detail.kategori === "restok") {
+            try {
+                const endpoint = `/items/detail_pembelian_stok?filter[pembelian_id][pengeluaran_id][_eq]=${id}&fields=*,produk_id.nama_produk`;
+                const resRestok = await getWithAuth(endpoint, token);
+                detailRestok = resRestok.data.data || [];
+            } catch (err) {
+                console.error("Error API Restok:", err.message);
+            }
+        }
+        
+        // B. KATEGORI ULAKAN
+        else if (detail.kategori === "aset/ulakan") {
+            try {
+                const endpoint = `/items/detail_transaksi?filter[pengeluaran_id][_eq]=${id}`;
+                const resUlakan = await getWithAuth(endpoint, token);
+                detailUlakan = resUlakan.data.data || [];
+            } catch (err) {
+                console.error("Error API Ulakan:", err.message);
+            }
+        }
+
+        // C. KATEGORI GAJI
+        else if (detail.kategori === "gaji") {
+            try {
+                // PASTIKAN field pengeluaran_id sudah dibuat di riwayat_penggajian
+                const resGaji = await getWithAuth(`/items/riwayat_penggajian?filter[pengeluaran_id][_eq]=${id}&fields=*,mekanik_id.nama_mekanik`, token);
+                if (resGaji.data.data && resGaji.data.data.length > 0) {
+                    detailGaji = resGaji.data.data[0];
+                }
+            } catch (err) {
+                console.error("Error API Gaji:", err.message);
+            }
+        }
+
+        // D. KATEGORI KASBON ATAU LAINNYA
+        else {
+             try {
+                // PASTIKAN field pengeluaran_id sudah dibuat di kasbon_mekanik
+                const resKasbon = await getWithAuth(`/items/kasbon_mekanik?filter[pengeluaran_id][_eq]=${id}&fields=*,mekanik_id.nama_mekanik`, token);
+                if (resKasbon.data.data && resKasbon.data.data.length > 0) {
+                    detailKasbon = resKasbon.data.data[0];
+                }
+            } catch (err) {
+                // Silent catch
+            }
+        }
+    }
+} catch (error) {
+    console.error(`Gagal API Pengeluaran ID ${id}:`, error.message);
+    isError = true;
+}
+
+const formatRp = (angka) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(angka || 0);
+
+const formatWIB = (dateString) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleString('id-ID', { 
+        timeZone: 'Asia/Jakarta', 
+        dateStyle: 'full', 
+        timeStyle: 'short' 
+    }) + " WIB";
+};
+
+// Styling Kategori
+let badgeKategoriClass = "bg-slate-100 text-slate-700 border-slate-200";
+let iconKategori = "fa-file-invoice-dollar";
+let deskripsiFinansial = "Pengeluaran ini memotong arus kas secara langsung.";
+
+if (detail?.kategori === "operasional") {
+    badgeKategoriClass = "bg-blue-50 text-blue-700 border-blue-200";
+    iconKategori = "fa-bolt";
+    deskripsiFinansial = "Biaya Operasional Murni (Beban Hangus). Mengurangi Pengeluaran Kotor dan Pengeluaran Bersih secara permanen.";
+} else if (detail?.kategori === "gaji") {
+    badgeKategoriClass = "bg-purple-50 text-purple-700 border-purple-200";
+    iconKategori = "fa-users";
+    deskripsiFinansial = "Beban Gaji/Bagi Hasil Mekanik. Merupakan biaya beban murni usaha.";
+} else if (detail?.kategori === "aset/ulakan") {
+    badgeKategoriClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+    iconKategori = "fa-motorcycle";
+    deskripsiFinansial = "Belanja Modal Ulakan / Stok Non-Buku. Menambah Pengeluaran Kotor saat dibeli, namun akan MENGURANGI Pengeluaran Bersih ketika barang laku terjual di kasir.";
+} else if (detail?.kategori === "restok") {
+    badgeKategoriClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
+    iconKategori = "fa-boxes-packing";
+    deskripsiFinansial = "Pembelian Stok Gudang. Berfungsi menambah aset persediaan sparepart toko.";
+}
+---
+
+<Layout title={`Detail Pengeluaran #${id}`}>
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        
+        {/* Navigasi Kembali */}
+        <div class="mb-6 flex items-center justify-between">
+            <a href="/pengeluaran" class="text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-2 text-sm transition">
+                <i class="fa-solid fa-arrow-left"></i> Kembali ke Riwayat
+            </a>
+            <span class="text-xs font-bold text-slate-400">ID Ref: #{id}</span>
+        </div>
+
+        {isError || !detail ? (
+            <div class="bg-red-50 border border-red-200 text-red-700 p-6 rounded-3xl text-center">
+                <i class="fa-solid fa-triangle-exclamation text-4xl mb-4"></i>
+                <h2 class="text-xl font-black mb-1">Data Tidak Ditemukan</h2>
+                <p class="text-sm">Pengeluaran yang Anda cari tidak ada atau telah dihapus dari sistem.</p>
+                <a href="/pengeluaran" class="mt-4 inline-block bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition">
+                    Kembali
+                </a>
+            </div>
+        ) : (
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                
+                {/* Header Detail */}
+                <div class="p-8 border-b border-slate-100 bg-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black uppercase border ${badgeKategoriClass}`}>
+                                <i class={`fa-solid ${iconKategori}`}></i> {detail.kategori}
+                            </span>
+                        </div>
+                        <h1 class="text-2xl font-black text-slate-800">{detail.keterangan || "Tanpa Keterangan"}</h1>
+                        <p class="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                            <i class="fa-regular fa-calendar"></i> Tanggal Kas Keluar: <strong class="text-slate-600">{detail.tanggal_pengeluaran}</strong>
+                        </p>
+                    </div>
+                    <div class="text-left md:text-right bg-white p-4 rounded-2xl border border-slate-200 w-full md:w-auto">
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Nominal Keluar</p>
+                        <p class="text-3xl font-black text-red-600">{formatRp(detail.nominal)}</p>
+                    </div>
+                </div>
+
+                <div class="p-8 space-y-8">
+                    
+                    {/* SEKSI DETAIL KHUSUS BERDASARKAN KATEGORI */}
+                    
+                    {/* 1. Tampilan Detail Restok */}
+                    {detail.kategori === "restok" && detailRestok.length > 0 && (
+                        <div class="border border-slate-200 rounded-2xl overflow-hidden">
+                            <div class="bg-indigo-50 px-5 py-3 border-b border-slate-200 flex items-center gap-3">
+                                <i class="fa-solid fa-boxes-stacked text-indigo-600"></i>
+                                <h3 class="font-black text-indigo-900 text-sm">Rincian Barang Restok</h3>
+                            </div>
+                            <div class="p-0 overflow-x-auto">
+                                <table class="w-full text-left text-sm">
+                                    <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+                                        <tr>
+                                            <th class="px-5 py-3 font-bold">No</th>
+                                            <th class="px-5 py-3 font-bold">Produk</th>
+                                            <th class="px-5 py-3 font-bold text-center">Qty</th>
+                                            <th class="px-5 py-3 font-bold text-right">Modal / Pcs</th>
+                                            <th class="px-5 py-3 font-bold text-right">Total Modal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100">
+                                        {detailRestok.map((item, index) => (
+                                            <tr class="hover:bg-slate-50 transition">
+                                                <td class="px-5 py-3 text-slate-500">{index + 1}</td>
+                                                <td class="px-5 py-3 font-bold text-slate-700">{item.produk_id?.nama_produk || "Produk Dihapus"}</td>
+                                                <td class="px-5 py-3 text-center font-medium">
+                                                    <span class="bg-slate-100 px-2 py-1 rounded-md text-xs">{item.qty_masuk}</span>
+                                                </td>
+                                                <td class="px-5 py-3 text-right text-slate-600">{formatRp(item.harga_modal_baru)}</td>
+                                                <td class="px-5 py-3 text-right font-bold text-slate-800">{formatRp(item.qty_masuk * item.harga_modal_baru)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 2. Tampilan Detail Ulakan */}
+                    {detail.kategori === "aset/ulakan" && detailUlakan.length > 0 && (
+                        <div class="border border-slate-200 rounded-2xl overflow-hidden">
+                            <div class="bg-emerald-50 px-5 py-3 border-b border-slate-200 flex items-center gap-3">
+                                <i class="fa-solid fa-cart-shopping text-emerald-600"></i>
+                                <h3 class="font-black text-emerald-900 text-sm">Rincian Barang Ulakan (Non-Stok)</h3>
+                            </div>
+                            <ul class="divide-y divide-slate-100">
+                                {detailUlakan.map((item) => (
+                                    <li class="p-5 flex justify-between items-center hover:bg-slate-50">
+                                        <div>
+                                            <p class="font-bold text-slate-800">{item.nama_item}</p>
+                                            <p class="text-xs text-slate-500 mt-1">Qty: {item.qty} | Harga Modal: {formatRp(item.harga_modal_snapshot)}</p>
+                                        </div>
+                                        <div class="text-right font-black text-slate-800">
+                                            {formatRp(item.qty * item.harga_modal_snapshot)}
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {/* 3. Tampilan Detail Gaji Mekanik (SUDAH DIPERBARUI) */}
+                    {detail.kategori === "gaji" && detailGaji && (
+                        <div class="border border-slate-200 rounded-2xl overflow-hidden">
+                            <div class="bg-purple-50 px-5 py-3 border-b border-slate-200 flex items-center gap-3">
+                                <i class="fa-solid fa-file-invoice-dollar text-purple-600"></i>
+                                <h3 class="font-black text-purple-900 text-sm">Rincian Slip Gaji</h3>
+                            </div>
+                            <div class="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
+                                <div>
+                                    <p class="text-xs text-slate-400 mb-1">Mekanik</p>
+                                    <p class="font-bold text-slate-800">{detailGaji.mekanik_id?.nama_mekanik || "-"}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-400 mb-1">Periode</p>
+                                    <p class="font-bold text-slate-800">{detailGaji.periode_mulai} s.d {detailGaji.periode_selesai}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-400 mb-1">Total THP (Gaji Bersih)</p>
+                                    <p class="font-black text-green-600">{formatRp(detailGaji.nominal_thp)}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-slate-400 mb-1">Catatan / Rincian Potongan</p>
+                                    <p class="font-medium text-slate-700">{detailGaji.deskripsi || "Tidak ada rincian potongan tercatat."}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 4. Tampilan Detail Kasbon */}
+                    {detailKasbon && (
+                        <div class="border border-slate-200 rounded-2xl overflow-hidden bg-orange-50/50">
+                            <div class="bg-orange-100 px-5 py-3 border-b border-orange-200 flex items-center gap-3">
+                                <i class="fa-solid fa-hand-holding-dollar text-orange-600"></i>
+                                <h3 class="font-black text-orange-900 text-sm">Rincian Kasbon Mekanik</h3>
+                            </div>
+                            <div class="p-5 flex justify-between items-center text-sm">
+                                <div>
+                                    <p class="font-bold text-slate-800">{detailKasbon.mekanik_id?.nama_mekanik || "-"}</p>
+                                    <p class="text-xs text-slate-500 mt-1">Status: <span class="uppercase font-bold text-orange-600">{detailKasbon.status_potong?.replace('_', ' ')}</span></p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="font-black text-red-600">{formatRp(detailKasbon.nominal)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Grid Informasi Sumber Dana & Penjelasan Akuntansi */}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        {/* Sumber Dana */}
+                        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                            <p class="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">Sumber Uang Keluar</p>
+                            {detail.sumber_dana === "transfer_bank" ? (
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center text-xl shrink-0">
+                                        <i class="fa-solid fa-building-columns"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-black text-slate-800">Transfer Bank / M-Banking</p>
+                                        <p class="text-xs text-slate-500 mt-0.5">Memotong saldo di Rekening Bank Bengkel</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl shrink-0">
+                                        <i class="fa-solid fa-money-bill-wave"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-black text-slate-800">Laci Kasir (Cash Fisik)</p>
+                                        <p class="text-xs text-slate-500 mt-0.5">Ditarik langsung dari fisik uang tunai kasir</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Dampak Finansial */}
+                        <div class="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100">
+                            <p class="text-xs font-black uppercase tracking-wider text-indigo-400 mb-2">Sifat Akuntansi & Beban</p>
+                            <p class="text-sm font-bold text-slate-700 mb-1">
+                                {detail.kategori === 'aset/ulakan' ? 'Modal Kerja (Aset Bergulir)' : detail.kategori === 'restok' ? 'Aset Persediaan Barang' : 'Beban Operasional Murni'}
+                            </p>
+                            <p class="text-xs text-slate-500 leading-relaxed">
+                                {deskripsiFinansial}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Informasi System Audit */}
+                    <div class="border-t border-slate-100 pt-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-400">
+                        <div>
+                            <span class="block font-bold text-slate-500">Waktu Di-input:</span>
+                            <br/>{formatWIB(detail.date_created)}
+                        </div>
+                        <div>
+                            <span class="block font-bold text-slate-500">Terakhir Diperbarui:</span>
+                            <br/>{detail.date_updated ? formatWIB(detail.date_updated) : "Belum ada perubahan"}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+    </div>
+</Layout>

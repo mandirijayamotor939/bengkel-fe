@@ -1,0 +1,327 @@
+---
+// src/pages/kasbon/index.astro
+import Layout from "../../layouts/Layout.astro";
+import { getWithAuth } from "../../lib/api";
+
+// 1. Ambil token dari cookie Astro
+const token = Astro.cookies.get('directus_token')?.value || "";
+
+let listMekanik = [];
+let listKasbon = [];
+let isError = false;
+
+try {
+    // 2. Tarik nama mekanik untuk dropdown form dengan Auth Token
+    const resMekanik = await getWithAuth("/items/mekanik", token);
+    listMekanik = resMekanik.data.data || [];
+
+    // 3. Tarik riwayat kasbon (urut dari yang paling baru) dan join nama mekaniknya dengan Auth Token
+    const resKasbon = await getWithAuth(
+        "/items/kasbon_mekanik?fields=*,mekanik_id.nama_mekanik&sort=-tanggal",
+        token
+    );
+    listKasbon = resKasbon.data.data || [];
+} catch (error) {
+    console.error("Gagal menarik data kasbon:", error.message);
+    isError = true;
+}
+
+// 4. Format Tanggal Hari Ini konsisten WIB (YYYY-MM-DD) untuk input type="date"
+const hariIni = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+}).format(new Date());
+const formatRp = (angka) =>
+    new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+    }).format(angka || 0);
+
+// Menambahkan opsi timeZone: "Asia/Jakarta" agar tampilan tabel akurat
+const formatTgl = (tgl) =>
+    new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Jakarta",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+    }).format(new Date(tgl));
+---
+
+<Layout title="Manajemen Kasbon">
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-black text-slate-800">Manajemen Kasbon</h1>
+            <p class="text-slate-500 mt-1">
+                Catat pinjaman mekanik baru dan pantau status pelunasannya.
+            </p>
+        </div>
+
+        {
+            isError && (
+                <div class="bg-red-50 text-red-700 p-4 rounded-xl mb-6">
+                    Gagal memuat data dari database. Pastikan koneksi ke server
+                    aman.
+                </div>
+            )
+        }
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* KOLOM KIRI: Form Input */}
+            <div class="lg:col-span-1">
+                <div
+                    class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6"
+                >
+                    <h2
+                        class="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-3"
+                    >
+                        Buat Kasbon Baru
+                    </h2>
+
+                    <form id="formKasbon" class="space-y-4">
+                        <div>
+                            <label
+                                class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                                >Pilih Mekanik</label
+                            >
+                            <select
+                                id="mekanikId"
+                                required
+                                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                            >
+                                <option value="" disabled selected
+                                    >-- Pilih Mekanik --</option
+                                >
+                                {
+                                    listMekanik.map((m) => (
+                                        <option
+                                            value={m.id}
+                                            data-nama={m.nama_mekanik}
+                                        >
+                                            {m.nama_mekanik}
+                                        </option>
+                                    ))
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label
+                                class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                                >Tanggal Pinjam</label
+                            >
+                            <input
+                                type="date"
+                                id="tanggal"
+                                value={hariIni}
+                                required
+                                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                                >Sumber Dana Pinjaman</label
+                            >
+                            <select
+                                id="sumberDana"
+                                required
+                                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                            >
+                                <option value="laci_kasir"
+                                    >Laci Kasir (Uang Tunai)</option
+                                >
+                                <option value="transfer_bank"
+                                    >Transfer Bank</option
+                                >
+                            </select>
+                        </div>
+
+                        <div>
+                            <label
+                                class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                                >Nominal (Rp)</label
+                            >
+                            <input
+                                type="number"
+                                id="nominal"
+                                min="1"
+                                required
+                                placeholder="Contoh: 50000"
+                                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                        </div>
+
+                        {/* BARU: Input Keterangan */}
+                        <div>
+                            <label
+                                class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                                >Keterangan / Alasan (Opsional)</label
+                            >
+                            <textarea
+                                id="keterangan"
+                                rows="2"
+                                placeholder="Contoh: Beli seragam, kebutuhan mendesak..."
+                                class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                            ></textarea>
+                        </div>
+
+                        <button
+                            type="submit"
+                            id="btnSimpan"
+                            class="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition flex justify-center items-center gap-2"
+                        >
+                            <i class="fa-solid fa-save"></i> Simpan & Cairkan Dana
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            {/* KOLOM KANAN: Tabel Riwayat */}
+            <div class="lg:col-span-2">
+                <div
+                    class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden"
+                >
+                    <div
+                        class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center"
+                    >
+                        <h2 class="text-lg font-bold text-slate-800">
+                            Riwayat Pinjaman
+                        </h2>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-600">
+                            <thead
+                                class="bg-slate-50 text-xs uppercase font-bold text-slate-500 border-b border-slate-200"
+                            >
+                                <tr>
+                                    <th class="px-6 py-4">Tanggal</th>
+                                    <th class="px-6 py-4">Nama Mekanik</th>
+                                    <th class="px-6 py-4">Keterangan</th>
+                                    {/* BARU: Header Keterangan */}
+                                    <th class="px-6 py-4">Nominal</th>
+                                    <th class="px-6 py-4">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                {
+                                    listKasbon.length === 0 ? (
+                                        <tr>
+                                            <td
+                                                colspan="5"
+                                                class="px-6 py-8 text-center text-slate-400 italic"
+                                            >
+                                                Belum ada data kasbon.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        listKasbon.map((k) => (
+                                            <tr class="hover:bg-slate-50 transition">
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    {formatTgl(k.tanggal)}
+                                                </td>
+                                                <td class="px-6 py-4 font-semibold text-slate-800">
+                                                    {k.mekanik_id
+                                                        ?.nama_mekanik || "-"}
+                                                </td>
+
+                                                {/* BARU: Menampilkan data keterangan dari database */}
+                                                <td
+                                                    class="px-6 py-4 max-w-[200px] truncate"
+                                                    title={k.keterangan || "-"}
+                                                >
+                                                    {k.keterangan || "-"}
+                                                </td>
+
+                                                <td class="px-6 py-4 font-bold text-red-600">
+                                                    {formatRp(k.nominal)}
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    {k.status_potong ===
+                                                    "belum_lunas" ? (
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                            Belum Lunas
+                                                        </span>
+                                                    ) : (
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                                                            Lunas
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</Layout>
+
+<script is:inline>
+    document
+        .getElementById("formKasbon")
+        .addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const dropdown = document.getElementById("mekanikId");
+            const mekanikId = dropdown.value;
+            const namaMekanik =
+                dropdown.options[dropdown.selectedIndex]?.getAttribute(
+                    "data-nama",
+                );
+            const tanggal = document.getElementById("tanggal").value;
+            const nominal = document.getElementById("nominal").value;
+            const sumberDana = document.getElementById("sumberDana").value;
+            const keterangan = document.getElementById("keterangan").value; // BARU: Tangkap value keterangan
+
+            const btn = document.getElementById("btnSimpan");
+            const originalText = btn.innerHTML;
+
+            const konfirmasi = confirm(
+                `Cairkan kasbon sebesar Rp ${parseInt(nominal).toLocaleString("id-ID")} untuk ${namaMekanik}?\nDana akan diambil dari: ${sumberDana === "laci_kasir" ? "Laci Kasir" : "Transfer Bank"}`,
+            );
+            if (!konfirmasi) return;
+
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Memproses...`;
+            btn.disabled = true;
+
+            try {
+                const response = await fetch("/api/tambah-kasbon", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        mekanik_id: mekanikId,
+                        nama_mekanik: namaMekanik,
+                        tanggal: tanggal,
+                        nominal: parseInt(nominal),
+                        sumber_dana: sumberDana,
+                        keterangan: keterangan, // BARU: Kirim ke API
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert("Berhasil mencatat pengeluaran kasbon!");
+                    window.location.reload();
+                } else {
+                    alert("Gagal: " + result.message);
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                alert("Terjadi kesalahan jaringan saat menyimpan data.");
+                console.error(error);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        });
+</script>

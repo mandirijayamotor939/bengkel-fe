@@ -1,0 +1,192 @@
+---
+import "../styles/global.css";
+
+// Cek token, jika ada lempar ke dashboard
+const token = Astro.cookies.get("directus_token")?.value;
+if (token) {
+    return Astro.redirect("/");
+}
+---
+
+<!doctype html>
+<html lang="id">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Login | Bengkel Mandiri Jaya Motor</title>
+    </head>
+    <body
+        class="bg-[#f4f7fe] text-slate-800 font-sans min-h-screen flex items-center justify-center p-4"
+    >
+        <!-- Card Login di Tengah -->
+        <div
+            class="bg-white w-full max-w-sm p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center"
+        >
+            <!-- Logo Bengkel -->
+            <div class="mb-5">
+                <!-- Ukuran SVG dikunci mutlak menggunakan width dan height bawaan -->
+                <svg
+                    width="48"
+                    height="48"
+                    viewBox="0 0 48 48"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                >
+                    <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M15.4286 16C11.3255 16 8 19.3255 8 23.4286C8 27.5316 11.3255 30.8571 15.4286 30.8571C17.708 30.8571 19.7483 29.8309 21.1166 28.196L23.8574 24.9213L26.5982 28.196C27.9665 29.8309 30.0068 30.8571 32.2861 30.8571C36.3892 30.8571 39.7147 27.5316 39.7147 23.4286C39.7147 19.3255 36.3892 16 32.2861 16C30.0068 16 27.9665 17.0262 26.5982 18.6611L23.8574 21.9358L21.1166 18.6611C19.7483 17.0262 17.708 16 15.4286 16ZM15.4286 26.8571C13.535 26.8571 12 25.3221 12 23.4286C12 21.535 13.535 20 15.4286 20C16.4952 20 17.4475 20.4862 18.0694 21.229L20.6775 24.3458L18.0694 27.4626C17.4475 28.2053 16.4952 26.8571 15.4286 26.8571ZM32.2861 26.8571C34.1797 26.8571 35.7147 25.3221 35.7147 23.4286C35.7147 21.535 34.1797 20 32.2861 20C31.2195 20 30.2672 20.4862 29.6453 21.229L27.0372 24.3458L29.6453 27.4626C30.2672 28.2053 31.2195 26.8571 32.2861 26.8571Z"
+                        fill="#3b82f6"></path>
+                    <path
+                        d="M26.5982 18.6611C27.9665 17.0262 30.0068 16 32.2861 16C36.3892 16 39.7147 19.3255 39.7147 23.4286C39.7147 27.5316 36.3892 30.8571 32.2861 30.8571C30.0068 30.8571 27.9665 29.8309 26.5982 28.196L21.1166 21.642C19.7483 20.0071 17.708 18.981 15.4286 18.981C12.9734 18.981 10.981 20.9734 10.981 23.4286C10.981 25.8837 12.9734 27.8762 15.4286 27.8762C17.708 27.8762 19.7483 26.85 21.1166 25.2151L26.5982 31.7691C25.2299 33.404 23.1896 34.4302 20.9103 34.4302C16.8072 34.4302 13.4817 31.1047 13.4817 27.0017C13.4817 22.8986 16.8072 19.5731 20.9103 19.5731C23.1896 19.5731 25.2299 20.5993 26.5982 22.2342L32.0798 28.7882C33.4481 30.4231 35.4884 31.4493 37.7677 31.4493C40.2229 31.4493 42.2153 29.4568 42.2153 27.0017C42.2153 24.5465 40.2229 22.5541 37.7677 22.5541C35.4884 22.5541 33.4481 23.5802 32.0798 25.2151L26.5982 18.6611Z"
+                        fill="#60a5fa"></path>
+                </svg>
+            </div>
+
+            <h2 class="text-xl font-bold text-slate-800 text-center mb-1">
+                Bengkel Mandiri Jaya Motor
+            </h2>
+            <p class="text-[13px] text-slate-400 text-center mb-8">
+                Enter your credentials to access your account.
+            </p>
+
+            <!-- Form Login -->
+            <form id="loginForm" class="w-full space-y-4">
+                <!-- Alert Error (Hidden) -->
+                <div
+                    id="errorMessage"
+                    class="hidden bg-red-50 border border-red-200 text-red-600 text-xs text-center py-2 rounded-lg font-medium"
+                >
+                    Email atau Password salah!
+                </div>
+
+                <!-- Email -->
+                <div class="relative w-full">
+                    <div
+                        class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
+                    >
+                        <!-- Ukuran dikunci 18px -->
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="#3b82f6"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <path
+                                d="M20 4H4C2.9 4 2.01 4.9 2.01 6L2 18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6C22 4.9 21.1 4 20 4ZM20 18H4V8L12 13L20 8V18ZM12 11L4 6H20L12 11Z"
+                            ></path>
+                        </svg>
+                    </div>
+                    <input
+                        type="email"
+                        id="email"
+                        required
+                        class="w-full pl-[38px] pr-4 py-2.5 bg-white border border-slate-200 text-sm rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                        placeholder="Enter your email"
+                    />
+                </div>
+
+                <!-- Password -->
+                <div class="relative w-full">
+                    <div
+                        class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"
+                    >
+                        <!-- Ukuran dikunci 18px -->
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="#3b82f6"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <path
+                                d="M18 8H17V6C17 3.24 14.76 1 12 1C9.24 1 7 3.24 7 6V8H6C4.9 8 4 8.9 4 10V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V10C20 8.9 19.1 8 18 8ZM9 6C9 4.34 10.34 3 12 3C13.66 3 15 4.34 15 6V8H9V6ZM18 20H6V10H18V20ZM12 17C13.1 17 14 16.1 14 15C14 13.9 13.1 13 12 13C10.9 13 10 13.9 10 15C10 16.1 10.9 17 12 17Z"
+                            ></path>
+                        </svg>
+                    </div>
+                    <input
+                        type="password"
+                        id="password"
+                        required
+                        class="w-full pl-[38px] pr-4 py-2.5 bg-white border border-slate-200 text-sm rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                        placeholder="Enter your password"
+                    />
+                </div>
+
+                <!-- Tombol Login -->
+                <button
+                    type="submit"
+                    id="btnLogin"
+                    class="w-full bg-[#3b82f6] hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition-colors mt-2"
+                >
+                    Sign In
+                </button>
+            </form>
+        </div>
+
+        <!-- Logika JS -->
+        <script is:inline>
+            document
+                .getElementById("loginForm")
+                .addEventListener("submit", async (e) => {
+                    e.preventDefault();
+                    const email = document.getElementById("email").value;
+                    const password = document.getElementById("password").value;
+                    const btn = document.getElementById("btnLogin");
+                    const err = document.getElementById("errorMessage");
+
+                    btn.innerHTML = "Signing in...";
+                    btn.disabled = true;
+                    btn.classList.add("opacity-70", "cursor-not-allowed");
+                    err.classList.add("hidden");
+
+                    try {
+                        // Tembak API auth Directus
+                        const baseUrl = "http://localhost:8055";
+
+                        const response = await fetch(`${baseUrl}/auth/login`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ email, password }),
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok && data.data?.access_token) {
+                            const token = data.data.access_token;
+                            const refreshToken = data.data.refresh_token; // <-- TANGKAP REFRESH TOKEN
+
+                            // Simpan Access Token (29 Menit / 1740 detik) agar refresh token terpicu lebih awal
+                            document.cookie = `directus_token=${token}; path=/; max-age=1740; samesite=strict;`;
+
+                            // Simpan Refresh Token (7 Hari / 604800 detik)
+                            if (refreshToken) {
+                                document.cookie = `directus_refresh_token=${refreshToken}; path=/; max-age=604800; samesite=strict;`;
+                            }
+
+                            btn.innerHTML = "Success!";
+                            setTimeout(() => (window.location.href = "/"), 300);
+                        } else {
+                            err.classList.remove("hidden");
+                            btn.innerHTML = "Sign In";
+                            btn.disabled = false;
+                            btn.classList.remove(
+                                "opacity-70",
+                                "cursor-not-allowed",
+                            );
+                        }
+                    } catch (error) {
+                        err.innerHTML = "Koneksi ke server gagal.";
+                        err.classList.remove("hidden");
+                        btn.innerHTML = "Sign In";
+                        btn.disabled = false;
+                        btn.classList.remove(
+                            "opacity-70",
+                            "cursor-not-allowed",
+                        );
+                    }
+                });
+        </script>
+    </body>
+</html>

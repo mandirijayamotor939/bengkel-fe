@@ -1,0 +1,377 @@
+---
+// src/pages/transaksi/index.astro
+import Layout from "../../layouts/Layout.astro";
+import { api } from "../../lib/api";
+
+// 1. Tangkap parameter URL untuk fitur Filter Pencarian
+const url = new URL(Astro.request.url);
+const statusFilter = url.searchParams.get("status") || "semua";
+const tanggalMulai = url.searchParams.get("tanggal_mulai") || "";
+const tanggalSelesai = url.searchParams.get("tanggal_selesai") || "";
+const kategoriFilter = url.searchParams.get("kategori") || "semua";
+
+let listTransaksi = [];
+let statistikItem = {};
+
+const token = Astro.cookies.get("directus_token")?.value;
+const config = { headers: { Authorization: `Bearer ${token}` } };
+
+try {
+    // 2. Susun endpoint (Hanya filter Parent/Header lewat API agar isi detail tidak terpotong)
+    let endpoint = "/items/transaksi?fields=*,detail_transaksi.*&sort=-tanggal_transaksi";
+    let filterQuery = [];
+    
+    // Filter by Status
+    if (statusFilter !== "semua") {
+        filterQuery.push(`filter[status_nota][_eq]=${statusFilter}`);
+    }
+
+    // Filter by Rentang Tanggal
+    if (tanggalMulai && tanggalSelesai) {
+        filterQuery.push(`filter[tanggal_transaksi][_between]=${tanggalMulai}T00:00:00,${tanggalSelesai}T23:59:59`);
+    } else if (tanggalMulai) {
+        filterQuery.push(`filter[tanggal_transaksi][_gte]=${tanggalMulai}T00:00:00`);
+    } else if (tanggalSelesai) {
+        filterQuery.push(`filter[tanggal_transaksi][_lte]=${tanggalSelesai}T23:59:59`);
+    }
+
+    if (filterQuery.length > 0) {
+        endpoint += `&${filterQuery.join("&")}`;
+    }
+
+    const response = await api.get(endpoint, config);
+    let rawData = response.data.data || [];
+
+    // 3. Filter by Kategori Item menggunakan JavaScript (Agar sibling item di dalam nota tetap utuh)
+    if (kategoriFilter !== "semua") {
+        listTransaksi = rawData.filter((trx: any) => {
+            if (!trx.detail_transaksi) return false;
+            // Cek apakah di dalam nota ini ADA item yang tipenya sama dengan filter
+            return trx.detail_transaksi.some((item: any) => item.tipe_item === kategoriFilter);
+        });
+    } else {
+        listTransaksi = rawData;
+    }
+
+    // 4. Olah data untuk Statistik (Tabel)
+    listTransaksi.forEach((trx: any) => {
+        if (trx.detail_transaksi && Array.isArray(trx.detail_transaksi)) {
+            trx.detail_transaksi.forEach((item: any) => {
+                const nama = item.nama_item || "Item Tidak Diketahui";
+                
+                if (!statistikItem[nama]) {
+                    statistikItem[nama] = {
+                        nama: nama,
+                        tipe: item.tipe_item || "-",
+                        qty_terjual: 0,
+                        total_modal: 0,
+                        total_jual: 0,
+                        total_profit: 0
+                    };
+                }
+
+                const qty = item.qty || 1;
+                const modal = (item.harga_modal_snapshot || 0) * qty;
+                const jual = (item.harga_jual_snapshot || 0) * qty;
+                const profit = jual - modal;
+
+                statistikItem[nama].qty_terjual += qty;
+                statistikItem[nama].total_modal += modal;
+                statistikItem[nama].total_jual += jual;
+                statistikItem[nama].total_profit += profit;
+            });
+        }
+    });
+
+} catch (error) {
+    console.error("Gagal mengambil riwayat transaksi:", error);
+}
+
+// Urutkan statistik berdasarkan profit terbesar
+const listStatistik = Object.values(statistikItem).sort((a: any, b: any) => b.total_profit - a.total_profit);
+
+// Hitung Grand Total untuk bagian Statistik
+let totalStatQty = 0;
+let totalStatModal = 0;
+let totalStatJual = 0;
+let totalStatProfit = 0;
+
+listStatistik.forEach((stat: any) => {
+    totalStatQty += stat.qty_terjual;
+    totalStatModal += stat.total_modal;
+    totalStatJual += stat.total_jual;
+    totalStatProfit += stat.total_profit;
+});
+
+// 5. Helper Format Tanggal & Rupiah
+const formatTanggal = (isoString: string) => {
+    if (!isoString) return "-";
+    const date = new Date(isoString);
+    return new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Jakarta",
+        day: "2-digit", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+    }).format(date) + " WIB";
+};
+
+const formatRp = (angka: number) => {
+    return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+    }).format(Number(angka || 0));
+};
+---
+
+<Layout title="Riwayat Transaksi">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Header Section -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <h2 class="text-3xl font-black text-slate-800 tracking-tight">
+                    Riwayat Transaksi
+                </h2>
+                <p class="text-slate-500 text-sm mt-1">
+                    Daftar seluruh nota penjualan, statistik, dan rincian detail item.
+                </p>
+            </div>
+            <a href="/transaksi/baru" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-indigo-200 flex items-center gap-2 shrink-0">
+                <i class="fa-solid fa-plus"></i> Buat Transaksi Baru
+            </a>
+        </div>
+
+        <!-- Statistik Items (Format Tabel) -->
+        {listStatistik.length > 0 && (
+            <div class="mb-8">
+                <h3 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line text-indigo-500"></i> Statistik Penjualan (Berdasarkan Filter)
+                </h3>
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-indigo-50 border-b border-indigo-100 text-indigo-800 text-xs uppercase tracking-wider">
+                                    <th class="p-4 font-bold">Nama Item / Jasa</th>
+                                    <th class="p-4 font-bold">Kategori</th>
+                                    <th class="p-4 font-bold text-center">Terjual</th>
+                                    <th class="p-4 font-bold text-right">Total Modal</th>
+                                    <th class="p-4 font-bold text-right">Total Jual</th>
+                                    <th class="p-4 font-bold text-right">Total Untung</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                {listStatistik.map((stat: any) => (
+                                    <tr class="hover:bg-slate-50 transition text-sm">
+                                        <td class="p-4 font-bold text-slate-700">{stat.nama}</td>
+                                        <td class="p-4">
+                                            <span class={`text-[10px] font-black uppercase px-2 py-1 rounded-md tracking-wider ${stat.tipe === 'jasa' ? 'bg-purple-100 text-purple-700' : stat.tipe === 'ulakan' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                {stat.tipe}
+                                            </span>
+                                        </td>
+                                        <td class="p-4 text-center font-bold text-slate-800">{stat.qty_terjual}x</td>
+                                        <td class="p-4 text-right text-slate-500">{formatRp(stat.total_modal)}</td>
+                                        <td class="p-4 text-right font-medium text-slate-700">{formatRp(stat.total_jual)}</td>
+                                        <td class="p-4 text-right font-bold text-emerald-600">{formatRp(stat.total_profit)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <!-- Penjumlahan Total Statistik -->
+                            <tfoot class="bg-slate-50 border-t-2 border-slate-200 font-bold text-sm">
+                                <tr>
+                                    <td colspan="2" class="p-4 text-right text-slate-600 uppercase tracking-wider">Total Keseluruhan:</td>
+                                    <td class="p-4 text-center text-slate-800">{totalStatQty}x</td>
+                                    <td class="p-4 text-right text-slate-500">{formatRp(totalStatModal)}</td>
+                                    <td class="p-4 text-right text-slate-800">{formatRp(totalStatJual)}</td>
+                                    <td class="p-4 text-right text-emerald-600 text-base">{formatRp(totalStatProfit)}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        <!-- Filter / Searching Section -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
+            <form method="GET" action="/transaksi" class="flex flex-col lg:flex-row gap-4 items-end">
+                
+                <!-- Filter Tanggal (Rentang) -->
+                <div class="w-full lg:w-auto flex-1 flex flex-col sm:flex-row gap-4">
+                    <div class="flex-1">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                            Dari Tanggal
+                        </label>
+                        <input 
+                            type="date" 
+                            name="tanggal_mulai" 
+                            value={tanggalMulai}
+                            class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                            Sampai Tanggal
+                        </label>
+                        <input 
+                            type="date" 
+                            name="tanggal_selesai" 
+                            value={tanggalSelesai}
+                            class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                    </div>
+                </div>
+
+                <!-- Filter Kategori -->
+                <div class="w-full lg:w-auto flex-1">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                        Kategori Item di Nota
+                    </label>
+                    <select 
+                        name="kategori" 
+                        class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="semua" selected={kategoriFilter === 'semua'}>Semua Kategori</option>
+                        <option value="sparepart" selected={kategoriFilter === 'sparepart'}>Sparepart / Produk</option>
+                        <option value="jasa" selected={kategoriFilter === 'jasa'}>Jasa / Mekanik</option>
+                        <option value="ulakan" selected={kategoriFilter === 'ulakan'}>Ulakan (Beli Luar)</option>
+                    </select>
+                </div>
+
+                <div class="w-full lg:w-auto flex-1">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                        Status Nota
+                    </label>
+                    <select 
+                        name="status" 
+                        class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="semua" selected={statusFilter === 'semua'}>Semua Transaksi</option>
+                        <option value="lunas" selected={statusFilter === 'lunas'}>Sudah Lunas</option>
+                        <option value="proses" selected={statusFilter === 'proses'}>Masih Proses (Gantung)</option>
+                    </select>
+                </div>
+
+                <div class="w-full lg:w-auto flex flex-row gap-2 shrink-0">
+                    <button type="submit" class="flex-1 lg:flex-none bg-slate-800 hover:bg-slate-900 text-white px-6 py-2.5 rounded-lg font-bold transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-magnifying-glass"></i> Cari
+                    </button>
+                    <a href="/transaksi" class="flex-1 lg:flex-none bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2.5 rounded-lg font-bold transition flex items-center justify-center">
+                        Reset
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Table Transaksi -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider">
+                            <th class="p-4 font-bold">Informasi Nota</th>
+                            <th class="p-4 font-bold min-w-[300px]">Rincian Item</th>
+                            <th class="p-4 font-bold">Status</th>
+                            <th class="p-4 font-bold text-right">Tagihan & Profit</th>
+                            <th class="p-4 font-bold text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {
+                            listTransaksi.length === 0 ? (
+                                <tr>
+                                    <td colspan="5" class="p-8 text-center text-slate-400">
+                                        <i class="fa-solid fa-folder-open text-4xl mb-3 opacity-20 block" />
+                                        Belum ada data transaksi yang cocok dengan filter pencarian.
+                                    </td>
+                                </tr>
+                            ) : (
+                                listTransaksi.map((trx: any) => (
+                                    <tr class="hover:bg-slate-50/50 transition align-top">
+                                        
+                                        <!-- Info Nota -->
+                                        <td class="p-4">
+                                            <div class="font-black text-slate-700 text-lg mb-1">#{trx.id}</div>
+                                            <div class="text-xs text-slate-500 flex items-center gap-1">
+                                                <i class="fa-regular fa-calendar"></i> {formatTanggal(trx.tanggal_transaksi)}
+                                            </div>
+                                        </td>
+
+                                        <!-- Rincian Item -->
+                                        <td class="p-4">
+                                            <div class="space-y-3">
+                                                {trx.detail_transaksi && trx.detail_transaksi.length > 0 ? (
+                                                    trx.detail_transaksi.map((item: any, index: number) => (
+                                                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                            <div class="flex flex-wrap justify-between items-start gap-2 mb-2">
+                                                                <span class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                                                    <span>{index + 1}. {item.nama_item} <span class="text-indigo-600">x{item.qty}</span></span>
+                                                                    <span class="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 tracking-wider">
+                                                                        {item.tipe_item || '-'}
+                                                                    </span>
+                                                                </span>
+                                                            </div>
+                                                            <div class="flex gap-4 text-xs mb-1">
+                                                                <div class="text-slate-500">
+                                                                    Modal: <span class="font-medium">{formatRp(item.harga_modal_snapshot)}</span>
+                                                                </div>
+                                                                <div class="text-slate-500">
+                                                                    Jual: <span class="font-medium">{formatRp(item.harga_jual_snapshot)}</span>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <!-- MENAMPILKAN KETERANGAN DI SINI -->
+                                                            {item.keterangan && (
+                                                                <div class="mt-2 pt-2 border-t border-slate-200 text-[11px] text-slate-500 whitespace-pre-wrap leading-relaxed">
+                                                                    <i class="fa-solid fa-note-sticky mr-1"></i> {item.keterangan}
+                                                                </div>
+                                                            )}
+                                                            
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <span class="text-slate-400 text-sm italic">Tidak ada rincian item</span>
+                                                )}
+                                            </div>
+                                        </td>
+
+                                        <!-- Status -->
+                                        <td class="p-4">
+                                            {trx.status_nota === 'lunas' ? (
+                                                <span class="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-wide">
+                                                    Lunas
+                                                </span>
+                                            ) : (
+                                                <span class="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-wide flex items-center gap-1 w-max">
+                                                    <i class="fa-solid fa-clock"></i> Gantung
+                                                </span>
+                                            )}
+                                        </td>
+
+                                        <!-- Tagihan & Profit -->
+                                        <td class="p-4 text-right">
+                                            <div class="font-black text-slate-800 text-lg mb-1">{formatRp(trx.total_harga)}</div>
+                                            <div class={`text-xs font-bold ${trx.total_profit < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                                                Untung: {formatRp(trx.total_profit)}
+                                            </div>
+                                        </td>
+
+                                        <!-- Aksi -->
+                                        <td class="p-4 text-center">
+                                            <a
+                                                href={`/transaksi/${trx.id}`}
+                                                class="text-indigo-600 hover:text-indigo-800 font-bold text-sm bg-indigo-50 hover:bg-indigo-100 px-4 py-2.5 rounded-lg transition inline-block"
+                                            >
+                                                Cetak / Detail
+                                            </a>
+                                        </td>
+                                    </tr>
+                                ))
+                            )
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</Layout>

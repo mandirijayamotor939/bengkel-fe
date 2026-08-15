@@ -1,0 +1,182 @@
+---
+// src/pages/penggajian/index.astro
+import Layout from "../../layouts/Layout.astro";
+import { getWithAuth } from "../../lib/api"; // <-- Ubah import
+
+const token = Astro.cookies.get("directus_token")?.value; // <-- Ambil token
+
+let mekanikList = [];
+let isError = false;
+
+try {
+    // Gunakan getWithAuth
+    const res = await getWithAuth("/items/mekanik", token);
+    mekanikList = res.data.data || [];
+} catch (error) {
+    console.error("Gagal mengambil data mekanik:", error.message);
+    isError = true;
+}
+
+// Logika mencari default hari Senin dan Minggu di minggu berjalan
+const hariIni = new Date();
+const hari = hariIni.getDay(); // 0 = Minggu, 1 = Senin, dst
+const selisihSenin = hari === 0 ? -6 : 1 - hari;
+
+const tglSenin = new Date(hariIni);
+tglSenin.setDate(hariIni.getDate() + selisihSenin);
+
+const tglMinggu = new Date(tglSenin);
+tglMinggu.setDate(tglSenin.getDate() + 6);
+
+// Format YYYY-MM-DD untuk input type="date"
+const formatWIB = (date) => new Intl.DateTimeFormat('en-CA', { 
+    timeZone: 'Asia/Jakarta', 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit' 
+}).format(date);
+
+const defaultMulai = formatWIB(tglSenin);
+const defaultSelesai = formatWIB(tglMinggu);
+---
+
+<Layout title="Sistem Penggajian & Komisi">
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        {
+            isError && (
+                <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+                    <i class="fa-solid fa-triangle-exclamation mr-2" /> Gagal
+                    terhubung ke server database.
+                </div>
+            )
+        }
+
+        <div
+            class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4"
+        >
+            <div>
+                <h1 class="text-3xl font-black text-slate-800">
+                    Penggajian Mekanik
+                </h1>
+                <p class="text-slate-500 mt-1">
+                    Pilih periode dan mekanik untuk menghitung Take Home Pay
+                    (THP).
+                </p>
+            </div>
+
+            {/* ACTION BUTTONS (ABSENSI & TAMBAH MEKANIK) */}
+            <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <a
+                    href="/penggajian/absensi"
+                    class="w-full md:w-auto text-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-5 py-2.5 rounded-xl font-bold transition flex justify-center items-center gap-2 border border-indigo-200"
+                >
+                    <i class="fa-solid fa-calendar-check"></i> Kelola Absensi
+                </a>
+                <a
+                    href="/penggajian/mekanik"
+                    class="w-full md:w-auto text-center bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold transition flex justify-center items-center gap-2 shadow-sm shadow-indigo-200"
+                >
+                    <i class="fa-solid fa-plus"></i> Tambah Mekanik
+                </a>
+            </div>
+        </div>
+
+        <div
+            class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden"
+        >
+            {/* Filter Periode Gaji */}
+            <div class="bg-slate-50 p-6 border-b border-slate-200">
+                <div
+                    class="flex flex-col sm:flex-row items-end gap-4 max-w-2xl"
+                >
+                    <div class="w-full">
+                        <label
+                            class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                            >Tanggal Mulai (Senin)</label
+                        >
+                        <input
+                            type="date"
+                            id="tglMulai"
+                            value={defaultMulai}
+                            class="w-full px-4 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                        />
+                    </div>
+                    <div class="w-full">
+                        <label
+                            class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                            >Tanggal Selesai (Minggu)</label
+                        >
+                        <input
+                            type="date"
+                            id="tglSelesai"
+                            value={defaultSelesai}
+                            class="w-full px-4 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* Daftar Mekanik */}
+            <div class="p-6">
+                <div
+                    class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+                >
+                    {
+                        mekanikList.map((mekanik) => (
+                            <div class="border border-slate-200 rounded-2xl p-5 hover:border-indigo-300 hover:shadow-md transition group bg-white">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div>
+                                        <h3 class="font-bold text-lg text-slate-800 group-hover:text-indigo-600 transition">
+                                            {mekanik.nama_mekanik}
+                                        </h3>
+                                        <p class="text-sm text-slate-500 mt-0.5">
+                                            <i class="fa-solid fa-phone text-xs mr-1" />{" "}
+                                            {mekanik.nomor_telepon || "-"}
+                                        </p>
+                                    </div>
+                                    <div class="h-10 w-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500 font-black">
+                                        {mekanik.nama_mekanik
+                                            .charAt(0)
+                                            .toUpperCase()}
+                                    </div>
+                                </div>
+
+                                <button
+                                    onclick={`hitungGaji(${mekanik.id})`}
+                                    class="w-full mt-2 bg-slate-900 hover:bg-indigo-600 text-white font-medium py-2.5 rounded-xl transition text-sm flex justify-center items-center gap-2"
+                                >
+                                    Lihat detail{" "}
+                                    <i class="fa-solid fa-arrow-right" />
+                                </button>
+                            </div>
+                        ))
+                    }
+
+                    {
+                        mekanikList.length === 0 && !isError && (
+                            <div class="col-span-full text-center py-8 text-slate-400">
+                                Belum ada data mekanik.
+                            </div>
+                        )
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</Layout>
+
+<script is:inline>
+    // Fungsi ini dipanggil dari button mekanik untuk melempar user ke halaman slip gaji beserta tanggalnya
+    function hitungGaji(idMekanik) {
+        const mulai = document.getElementById("tglMulai").value;
+        const selesai = document.getElementById("tglSelesai").value;
+
+        if (!mulai || !selesai) {
+            alert("Harap tentukan tanggal mulai dan selesai terlebih dahulu!");
+            return;
+        }
+
+        // Bawa tanggal sebagai query parameter ke halaman [id].astro
+        window.location.href = `/penggajian/${idMekanik}?start=${mulai}&end=${selesai}`;
+    }
+</script>

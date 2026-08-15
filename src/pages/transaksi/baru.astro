@@ -1,0 +1,610 @@
+---
+// src/pages/transaksi/baru.astro
+import Layout from "../../layouts/Layout.astro";
+import { api } from "../../lib/api";
+
+let daftarProduk = [];
+let daftarMekanik = [];
+let errorMessage = "";
+
+// 1. Tangkap Token dari Cookie[cite: 13]
+const token = Astro.cookies.get("directus_token")?.value;
+
+try {
+    // 2. Sisipkan Token pada header Authorization[cite: 13]
+    const [resProduk, resMekanik] = await Promise.all([
+        api.get("/items/produk?filter[stok_qty][_gt]=0", { headers: { Authorization: `Bearer ${token}` } }),
+        api.get("/items/mekanik", { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    daftarProduk = resProduk.data.data;
+    daftarMekanik = resMekanik.data.data;
+} catch (error) {
+    console.error("Gagal menarik data untuk kasir:", error);
+    errorMessage = "Koneksi ke server bermasalah. Gagal memuat produk/mekanik.";
+}
+---
+
+<Layout title="Mesin Kasir Bengkel">
+    <div class="mb-6">
+        <h2 class="text-2xl font-black text-slate-800 tracking-tight">
+            Mesin Kasir / Transaksi Baru
+        </h2>
+        <p class="text-slate-500 text-sm mt-1">
+            Input penjualan sparepart, jasa servis mekanik, dan item ulakan luar
+            toko.
+        </p>
+    </div>
+
+    {
+        errorMessage && (
+            <div class="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-triangle-exclamation" /> {errorMessage}
+            </div>
+        )
+    }
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        <div
+            class="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5"
+        >
+            <h3
+                class="text-base font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2"
+            >
+                <i class="fa-solid fa-cart-plus text-indigo-600"></i> Pilih Jenis
+                Item
+            </h3>
+
+            <div>
+                <label
+                    class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                    >Tipe Item</label
+                >
+                <select
+                    id="tipe_item_select"
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                >
+                    <option value="sparepart">⚙️ Sparepart (Potong Stok)</option
+                    >
+                    <option value="jasa">🛠️ Jasa Servis / Perbaikan</option>
+                    <option value="ulakan">📦 Ulakan (Beli di Luar Toko)</option
+                    >
+                </select>
+            </div>
+
+            <div id="form_sparepart" class="space-y-4">
+                <div>
+                    <label
+                        class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                        >Cari dan Pilih Produk Sparepart</label
+                    >
+                    <input
+                        type="text"
+                        id="search_sparepart"
+                        placeholder="🔍 Ketik nama barang..."
+                        class="w-full bg-white border border-slate-200 rounded-t-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 mb-[-1px] z-10 relative"
+                    />
+                    <select
+                        id="sparepart_select"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="">-- Pilih Barang --</option>
+                        {
+                            daftarProduk.map((p: any) => (
+                                <option
+                                    value={p.id}
+                                    data-nama={p.nama_produk}
+                                    data-modal={p.harga_modal || 0}
+                                    data-jual={p.harga_jual || 0}
+                                    data-stok={p.stok_qty || 0}
+                                >
+                                    {p.nama_produk} (Stok: {p.stok_qty || 0} |
+                                    Jual: Rp{" "}
+                                    {(p.harga_jual || 0).toLocaleString(
+                                        "id-ID",
+                                    )}
+                                    )
+                                </option>
+                            ))
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label
+                        class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                        >Quantity (Qty)</label
+                    >
+                    <input
+                        type="number"
+                        id="sparepart_qty"
+                        value="1"
+                        min="1"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                    />
+                </div>
+            </div>
+
+            <div id="form_jasa" class="space-y-4 hidden">
+                <div>
+                    <label
+                        class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                        >Nama Jasa / Servis</label
+                    >
+                    <input
+                        type="text"
+                        id="jasa_title"
+                        placeholder="Contoh: Servis Ringan Vario, Ganti Ban"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label
+                            class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                            >Biaya Jasa (Rp)</label
+                        >
+                        <input
+                            type="number"
+                            id="jasa_fee"
+                            placeholder="0"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                        />
+                    </div>
+                    <div>
+                        <label
+                            class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                            >Persen Komisi (%)</label
+                        >
+                        <input
+                            type="number"
+                            id="jasa_persen"
+                            value="60"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                        />
+                    </div>
+                </div>
+                <div>
+                    <label
+                        class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                        >Pilih Mekanik</label
+                    >
+                    <select
+                        id="mekanik_select"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        multiple
+                    >
+                        {
+                            daftarMekanik.map((m: any) => (
+                                <option value={m.id}>{m.nama_mekanik}</option>
+                            ))
+                        }
+                    </select>
+                    <p class="text-[11px] text-slate-400 mt-1">
+                        *Bisa pilih lebih dari 1 orang (tahan tombol Ctrl / Cmd
+                        saat klik) jika dikerjakan tim.
+                    </p>
+                </div>
+            </div>
+
+            <div id="form_ulakan" class="space-y-4 hidden">
+                <div>
+                    <label
+                        class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                        >Nama Barang Ulakan</label
+                    >
+                    <input
+                        type="text"
+                        id="ulakan_title"
+                        placeholder="Contoh: Kampas Rem Ori AHM (Beli di luar)"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label
+                            class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                            >Harga Beli Toko (Modal)</label
+                        >
+                        <input
+                            type="number"
+                            id="ulakan_modal"
+                            placeholder="0"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                        />
+                    </div>
+                    <div>
+                        <label
+                            class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                            >Harga Jual ke User</label
+                        >
+                        <input
+                            type="number"
+                            id="ulakan_jual"
+                            placeholder="0"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                        />
+                    </div>
+                </div>
+                <div>
+                    <label
+                        class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                        >Quantity (Qty)</label
+                    >
+                    <input
+                        type="number"
+                        id="ulakan_qty"
+                        value="1"
+                        min="1"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                    />
+                </div>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-slate-100">
+                <label
+                    class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                >
+                    Catatan / Keterangan (Opsional)
+                </label>
+                <textarea
+                    id="keterangan_item"
+                    rows="2"
+                    placeholder="Contoh: Bawaan pelanggan, garansi 1 minggu..."
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                ></textarea>
+            </div>
+
+            <button
+                id="btn_tambah_item"
+                class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2"
+            >
+                <i class="fa-solid fa-plus-circle"></i> Masukkan ke Nota
+            </button>
+        </div>
+
+        <div
+            class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col justify-between"
+        >
+            <div class="p-6 border-b border-slate-100">
+                <h3
+                    class="text-base font-bold text-slate-800 flex items-center gap-2"
+                >
+                    <i class="fa-solid fa-receipt text-slate-700"></i> Ringkasan Nota
+                    Belanja
+                </h3>
+            </div>
+
+            <div class="overflow-x-auto min-h-[250px] p-4">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr
+                            class="bg-slate-50 text-slate-400 text-[11px] font-bold uppercase tracking-wider"
+                        >
+                            <th class="p-3">Nama Item</th>
+                            <th class="p-3 text-center">Tipe</th>
+                            <th class="p-3 text-center">Qty</th>
+                            <th class="p-3 text-right">Harga Satuan</th>
+                            <th class="p-3 text-right">Subtotal</th>
+                            <th class="p-3 text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabel_keranjang" class="text-sm">
+                        <tr>
+                            <td
+                                colspan="6"
+                                class="p-8 text-center text-slate-400 font-medium"
+                                >Belum ada item yang dimasukkan ke keranjang
+                                nota.</td
+                            >
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bg-slate-50 p-6 border-t border-slate-100 space-y-6">
+                <div
+                    class="flex justify-between items-center bg-white border border-slate-200 p-4 rounded-xl shadow-sm"
+                >
+                    <div>
+                        <span
+                            class="text-xs font-bold text-slate-400 uppercase tracking-wider"
+                            >Total Pembayaran</span
+                        >
+                        <h4
+                            id="grand_total_text"
+                            class="text-3xl font-black text-slate-800 tracking-tight mt-0.5"
+                        >
+                            Rp 0
+                        </h4>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label
+                            class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                            >Status Pengerjaan Nota</label
+                        >
+                        <select
+                            id="status_nota"
+                            class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                        >
+                            <option value="lunas"
+                                >✅ Langsung Lunas (Selesai)</option
+                            >
+                            <option value="proses"
+                                >⏳ Proses Bongkar / Menunggu Ulakan</option
+                            >
+                        </select>
+                    </div>
+                    <div>
+                        <label
+                            class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                            >Metode Pembayaran</label
+                        >
+                        <select
+                            id="metode_pembayaran"
+                            class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                        >
+                            <option value="cash">💵 Uang Tunai (Cash)</option>
+                            <option value="qris">📱 QRIS / Transfer Bank</option
+                            >
+                        </select>
+                    </div>
+                </div>
+
+                <button
+                    id="btn_simpan_transaksi"
+                    class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-lg transition tracking-wide text-base flex items-center justify-center gap-2"
+                >
+                    <i class="fa-solid fa-floppy-disk text-lg"></i> SIMPAN & CETAK
+                    NOTA TRANSAKSI
+                </button>
+            </div>
+        </div>
+    </div>
+</Layout>
+
+<script is:inline>
+    let keranjang = [];
+
+    const tipeItemSelect = document.getElementById("tipe_item_select");
+    const formSparepart = document.getElementById("form_sparepart");
+    const formJasa = document.getElementById("form_jasa");
+    const formUlakan = document.getElementById("form_ulakan");
+
+    const searchSparepart = document.getElementById("search_sparepart");
+    const sparepartSelect = document.getElementById("sparepart_select");
+
+    if (searchSparepart && sparepartSelect) {
+        searchSparepart.addEventListener("input", function () {
+            const filterText = this.value.toLowerCase();
+
+            for (let i = 1; i < sparepartSelect.options.length; i++) {
+                const option = sparepartSelect.options[i];
+                const textContent = option.text.toLowerCase();
+                option.style.display = textContent.includes(filterText) ? "" : "none";
+            }
+        });
+    }
+
+    tipeItemSelect.addEventListener("change", () => {
+        const val = tipeItemSelect.value;
+        formSparepart.classList.toggle("hidden", val !== "sparepart");
+        formJasa.classList.toggle("hidden", val !== "jasa");
+        formUlakan.classList.toggle("hidden", val !== "ulakan");
+    });
+
+    document.getElementById("btn_tambah_item").addEventListener("click", () => {
+        const tipe = tipeItemSelect.value;
+        const keteranganInput = document.getElementById("keterangan_item");
+        const keteranganText = keteranganInput ? keteranganInput.value.trim() : "";
+
+        if (tipe === "sparepart") {
+            const el = document.getElementById("sparepart_select");
+            const selectedOpt = el.options[el.selectedIndex];
+            if (!el.value) return alert("Silakan pilih sparepart terlebih dahulu.");
+
+            const qty = parseInt(document.getElementById("sparepart_qty").value) || 1;
+            if (qty > parseInt(selectedOpt.dataset.stok)) return alert("Stok produk tidak mencukupi!");
+
+            keranjang.push({
+                tipe_item: "sparepart",
+                produk_id: el.value,
+                nama_item: selectedOpt.dataset.nama,
+                qty: qty,
+                harga_modal_snapshot: parseInt(selectedOpt.dataset.modal),
+                harga_jual_snapshot: parseInt(selectedOpt.dataset.jual),
+                mekanik_ids: [],
+                persentase_komisi: 0,
+                total_komisi_jasa: 0,
+                keterangan: keteranganText,
+            });
+        } else if (tipe === "jasa") {
+            const title = document.getElementById("jasa_title").value.trim();
+            const fee = parseInt(document.getElementById("jasa_fee").value) || 0;
+            const komisiPersen = parseInt(document.getElementById("jasa_persen").value) || 0;
+
+            if (!title) return alert("Nama tindakan jasa wajib diisi.");
+            if (fee <= 0) return alert("Biaya tindakan jasa tidak boleh Rp 0.");
+
+            const mekanikEl = document.getElementById("mekanik_select");
+            const selectedMekanik = Array.from(mekanikEl.selectedOptions).map((opt) => opt.value);
+            if (selectedMekanik.length === 0) return alert("Minimal pilih 1 mekanik penanggung jawab.");
+
+            const totalKomisi = Math.round(fee * (komisiPersen / 100));
+
+            keranjang.push({
+                tipe_item: "jasa",
+                produk_id: null,
+                nama_item: title,
+                qty: 1,
+                harga_modal_snapshot: 0,
+                harga_jual_snapshot: fee,
+                mekanik_ids: selectedMekanik,
+                persentase_komisi: komisiPersen,
+                total_komisi_jasa: totalKomisi,
+                keterangan: keteranganText,
+            });
+        } else if (tipe === "ulakan") {
+            const title = document.getElementById("ulakan_title").value.trim();
+            const modal = parseInt(document.getElementById("ulakan_modal").value) || 0;
+            const jual = parseInt(document.getElementById("ulakan_jual").value) || 0;
+            const qty = parseInt(document.getElementById("ulakan_qty").value) || 1;
+
+            if (!title) return alert("Nama sparepart ulakan harus diisi.");
+            if (modal <= 0 || jual <= 0) return alert("Harga modal & harga jual ulakan wajib valid.");
+
+            keranjang.push({
+                tipe_item: "ulakan",
+                produk_id: null,
+                nama_item: title,
+                qty: qty,
+                harga_modal_snapshot: modal,
+                harga_jual_snapshot: jual,
+                mekanik_ids: [],
+                persentase_komisi: 0,
+                total_komisi_jasa: 0,
+                keterangan: keteranganText,
+            });
+        }
+
+        resetFormInput();
+        renderKeranjang();
+    });
+
+    function resetFormInput() {
+        document.getElementById("sparepart_select").value = "";
+        document.getElementById("sparepart_qty").value = "1";
+        document.getElementById("jasa_title").value = "";
+        document.getElementById("jasa_fee").value = "";
+        document.getElementById("ulakan_title").value = "";
+        document.getElementById("ulakan_modal").value = "";
+        document.getElementById("ulakan_jual").value = "";
+        document.getElementById("ulakan_qty").value = "1";
+        document.getElementById("mekanik_select").selectedIndex = -1;
+
+        if (document.getElementById("keterangan_item")) {
+            document.getElementById("keterangan_item").value = "";
+        }
+
+        if (document.getElementById("search_sparepart")) {
+            document.getElementById("search_sparepart").value = "";
+            Array.from(document.getElementById("sparepart_select").options).forEach((opt) => (opt.style.display = ""));
+        }
+    }
+
+    function renderKeranjang() {
+        const body = document.getElementById("tabel_keranjang");
+        const totalText = document.getElementById("grand_total_text");
+
+        if (keranjang.length === 0) {
+            body.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 font-medium">Belum ada item yang dimasukkan ke keranjang nota.</td></tr>`;
+            totalText.innerText = "Rp 0";
+            return;
+        }
+
+        let html = "";
+        let grandTotal = 0;
+
+        keranjang.forEach((item, index) => {
+            const subtotal = item.harga_jual_snapshot * item.qty;
+            grandTotal += subtotal;
+
+            let badgeColor = "bg-blue-50 text-blue-600";
+            if (item.tipe_item === "jasa") badgeColor = "bg-purple-50 text-purple-600";
+            if (item.tipe_item === "ulakan") badgeColor = "bg-amber-50 text-amber-600";
+            let ketHtml = item.keterangan ? `<div class="text-[11px] font-normal text-slate-400 mt-1 whitespace-pre-wrap leading-relaxed"><i class="fa-solid fa-note-sticky mr-1"></i> ${item.keterangan}</div>` : "";
+
+            html += `
+                <tr class="border-b border-slate-100 hover:bg-slate-50/50">
+                    <td class="p-3 font-semibold text-slate-700">${item.nama_item}${ketHtml}</td>
+                    <td class="p-3 text-center"><span class="${badgeColor} px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider">${item.tipe_item}</span></td>
+                    <td class="p-3 text-center font-bold">${item.qty}</td>
+                    <td class="p-3 text-right text-slate-500">Rp ${item.harga_jual_snapshot.toLocaleString("id-ID")}</td>
+                    <td class="p-3 text-right font-bold text-slate-800">Rp ${subtotal.toLocaleString("id-ID")}</td>
+                    <td class="p-3 text-center">
+                        <button onclick="hapusItem(${index})" class="text-red-500 hover:text-red-700 p-1 transition"><i class="fa-solid fa-trash-can"></i></button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        body.innerHTML = html;
+        totalText.innerText = "Rp " + grandTotal.toLocaleString("id-ID");
+    }
+
+    window.hapusItem = function (index) {
+        keranjang.splice(index, 1);
+        renderKeranjang();
+    };
+
+    document.getElementById("btn_simpan_transaksi").addEventListener("click", async () => {
+        if (keranjang.length === 0) return alert("Keranjang belanja kosong! Harap isi item terlebih dahulu.");
+
+        const btnSimpan = document.getElementById("btn_simpan_transaksi");
+        const originalText = btnSimpan.innerHTML;
+        btnSimpan.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> MEMPROSES TRANSAKSI...`;
+        btnSimpan.disabled = true;
+
+        let totalHarga = 0;
+        let totalProfit = 0;
+
+        keranjang.forEach((item) => {
+            const subtotal = item.harga_jual_snapshot * item.qty;
+            totalHarga += subtotal;
+
+            if (item.tipe_item === "sparepart" || item.tipe_item === "ulakan") {
+                totalProfit += (item.harga_jual_snapshot - item.harga_modal_snapshot) * item.qty;
+            } else if (item.tipe_item === "jasa") {
+                totalProfit += subtotal - item.total_komisi_jasa;
+            }
+        });
+
+        const statusPembayaran = document.getElementById("status_nota").value;
+        const metodePembayaran = document.getElementById("metode_pembayaran").value;
+
+        const now = new Date();
+        const tzOffset = now.getTimezoneOffset() * 60000;
+        const waktuSekarang = new Date(now.getTime() - tzOffset).toISOString().slice(0, -1);
+
+        const payloadTransaksi = {
+            tanggal_transaksi: waktuSekarang,
+            total_harga: totalHarga,
+            total_profit: totalProfit,
+            status_nota: statusPembayaran,
+            metode_pembayaran: metodePembayaran,
+        };
+
+        // Kumpulkan semua data dan tembak ke endpoint internal kita
+        const payloadLengkap = {
+            payloadTransaksi,
+            keranjang,
+            metodePembayaran,
+            statusPembayaran,
+            waktuSekarang
+        };
+
+        try {
+            const response = await fetch('/api/simpan-transaksi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payloadLengkap)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert("Transaksi Berhasil Dicatat! Data Keuangan di Dashboard Otomatis Terupdate.");
+                window.location.href = "/";
+            } else {
+                throw new Error(result.message || "Gagal menyimpan ke server");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Terjadi kesalahan saat menyimpan transaksi: " + e.message);
+        } finally {
+            btnSimpan.innerHTML = originalText;
+            btnSimpan.disabled = false;
+        }
+    });
+</script>

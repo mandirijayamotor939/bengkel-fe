@@ -1,0 +1,808 @@
+---
+// src/pages/pengeluaran/index.astro
+import Layout from "../../layouts/Layout.astro";
+import { getWithAuth } from "../../lib/api";
+
+const token = Astro.cookies.get("directus_token")?.value || "";
+let listPengeluaran = [];
+let isError = false;
+
+try {
+    // 1. Fetch data pengeluaran murni
+    const resPengeluaran = await getWithAuth(
+        "/items/pengeluaran?sort=-tanggal_pengeluaran,-id",
+        token,
+    );
+    let dataPengeluaran = resPengeluaran.data.data || [];
+
+    // 2. Fetch data operasional_harian khusus yang bengkelnya buka
+    const resOperasional = await getWithAuth(
+        "/items/operasional_harian?filter[status_buka][_eq]=buka",
+        token,
+    );
+    let dataOperasional = resOperasional.data.data || [];
+
+    // 3. Mapping data operasional menjadi format pengeluaran yang terpisah
+    let dataBiayaTetap = dataOperasional.map((op) => ({
+        id: `fix-${op.id}`,
+        tanggal_pengeluaran: op.tanggal,
+        keterangan: "Biaya Tetap Harian (Snapshot)",
+        kategori: "biaya_tetap", // Kategori baru agar terpisah dari operasional biasa
+        sumber_dana: "biaya_tetap_harian", // Sumber dana dipisah dari bank/laci
+        nominal: op.biaya_tetap_snapshot || 0,
+        modal_terjual: 0,
+    }));
+
+    // 4. Gabungkan kedua data ke dalam list utama
+    let combinedData = [...dataPengeluaran, ...dataBiayaTetap];
+
+    // 5. Urutkan secara Descending (terbaru ke terlama) berdasarkan tanggal
+    combinedData.sort((a, b) => {
+        return (
+            new Date(b.tanggal_pengeluaran) - new Date(a.tanggal_pengeluaran)
+        );
+    });
+
+    listPengeluaran = combinedData;
+} catch (error) {
+    console.error("Gagal menarik data pengeluaran:", error.message);
+    isError = true;
+}
+
+const formatRp = (angka) =>
+    new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+    }).format(angka || 0);
+---
+
+<Layout title="Riwayat Pengeluaran">
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        {/* Header & Tombol Aksi */}
+        <div
+            class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8"
+        >
+            <div>
+                <h1 class="text-3xl font-black text-slate-800 tracking-tight">
+                    Riwayat Pengeluaran Kas
+                </h1>
+                <p class="text-slate-500 mt-1">
+                    Pantau seluruh arus kas keluar, beban operasional murni, dan
+                    pengeluaran bersih.
+                </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <a
+                    href="/pengeluaran/baru"
+                    class="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition inline-flex items-center gap-2"
+                >
+                    <i class="fa-solid fa-plus"></i> Catat Pengeluaran
+                </a>
+                <button
+                    id="btnExportExcel"
+                    class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition inline-flex items-center gap-2 cursor-pointer"
+                >
+                    <i class="fa-solid fa-file-excel"></i> Ekspor Excel
+                </button>
+                <a
+                    href="/pengeluaran/restok"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition inline-flex items-center gap-2"
+                >
+                    <i class="fa-solid fa-boxes-packing"></i> Restok Grosir
+                </a>
+            </div>
+        </div>
+
+        {
+            isError && (
+                <div class="bg-red-50 text-red-700 p-4 rounded-xl mb-6">
+                    Gagal terhubung ke database. Periksa koneksi API Server.
+                </div>
+            )
+        }
+
+        {/* --- CARD RINGKASAN FINANSIAL (KOTOR VS BERSIH) --- */}
+        <div class="space-y-4 mb-8">
+            {/* KELOMPOK 1: BEBAN FINANSIAL (KOTOR VS BERSIH) */}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Card Pengeluaran Kotor -->
+                <div
+                    class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm"
+                >
+                    <div class="flex items-center justify-between mb-2">
+                        <span
+                            class="text-xs font-black uppercase tracking-wider text-slate-400"
+                            >Pengeluaran Kotor (Gross)</span
+                        >
+                        <div
+                            class="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center"
+                        >
+                            <i class="fa-solid fa-money-bill-trend-up text-base"
+                            ></i>
+                        </div>
+                    </div>
+                    <h3
+                        class="text-2xl font-black text-slate-800"
+                        id="cardTotalKotor"
+                    >
+                        Rp 0
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Total seluruh uang keluar (Modal + Biaya)
+                    </p>
+                </div>
+
+                <!-- Card Modal Ulakan Terjual (Recouped Capital) -->
+                <div
+                    class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm"
+                >
+                    <div class="flex items-center justify-between mb-2">
+                        <span
+                            class="text-xs font-black uppercase tracking-wider text-slate-400"
+                            >Modal Ulakan Terjual</span
+                        >
+                        <div
+                            class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"
+                        >
+                            <i class="fa-solid fa-rotate-left text-base"></i>
+                        </div>
+                    </div>
+                    <h3
+                        class="text-2xl font-black text-emerald-600"
+                        id="cardModalTerjual"
+                    >
+                        Rp 0
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Modal ulakan yang sudah balik dari kasir
+                    </p>
+                </div>
+
+                <!-- Card Pengeluaran Bersih -->
+                <div
+                    class="bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-5 rounded-3xl shadow-md border border-slate-800"
+                >
+                    <div class="flex items-center justify-between mb-2">
+                        <span
+                            class="text-xs font-black uppercase tracking-wider text-indigo-300"
+                            >Pengeluaran Bersih (Net)</span
+                        >
+                        <div
+                            class="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center border border-indigo-400/30"
+                        >
+                            <i class="fa-solid fa-chart-pie text-base"></i>
+                        </div>
+                    </div>
+                    <h3
+                        class="text-2xl font-black text-amber-400"
+                        id="cardTotalBersih"
+                    >
+                        Rp 0
+                    </h3>
+                    <p class="text-xs text-indigo-200/70 mt-1">
+                        Beban murni (Kotor - Modal Terjual)
+                    </p>
+                </div>
+            </div>
+
+            {/* KELOMPOK 2: RINCIAN PER KATEGORI */}
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <!-- Biaya Tetap Harian -->
+                <div
+                    class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between"
+                >
+                    <span
+                        class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1"
+                        >Biaya Tetap Harian</span
+                    >
+                    <h4
+                        class="text-base font-black text-pink-600"
+                        id="cardTotalBiayaTetap"
+                    >
+                        Rp 0
+                    </h4>
+                </div>
+
+                <!-- Operasional Lainnya -->
+                <div
+                    class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between"
+                >
+                    <span
+                        class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1"
+                        >Operasional Lain</span
+                    >
+                    <h4
+                        class="text-base font-black text-blue-600"
+                        id="cardTotalOperasional"
+                    >
+                        Rp 0
+                    </h4>
+                </div>
+
+                <!-- Gaji Karyawan -->
+                <div
+                    class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between"
+                >
+                    <span
+                        class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1"
+                        >Gaji & Komisi</span
+                    >
+                    <h4
+                        class="text-base font-black text-purple-600"
+                        id="cardTotalGaji"
+                    >
+                        Rp 0
+                    </h4>
+                </div>
+
+                <!-- Kasbon -->
+                <div
+                    class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between"
+                >
+                    <span
+                        class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1"
+                        >Kasbon (Piutang)</span
+                    >
+                    <h4
+                        class="text-base font-black text-orange-600"
+                        id="cardTotalKasbon"
+                    >
+                        Rp 0
+                    </h4>
+                </div>
+
+                <!-- Restok Grosir -->
+                <div
+                    class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between"
+                >
+                    <span
+                        class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1"
+                        >Restok Grosir</span
+                    >
+                    <h4
+                        class="text-base font-black text-indigo-600"
+                        id="cardTotalRestok"
+                    >
+                        Rp 0
+                    </h4>
+                </div>
+
+                <!-- Ulakan Dadakan -->
+                <div
+                    class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between"
+                >
+                    <span
+                        class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1"
+                        >Ulakan Dadakan</span
+                    >
+                    <h4
+                        class="text-base font-black text-emerald-600"
+                        id="cardTotalUlakan"
+                    >
+                        Rp 0
+                    </h4>
+                    <div
+                        class="text-[9px] font-bold text-slate-500 mt-1 flex gap-2"
+                    >
+                        <span
+                            ><i
+                                class="fa-solid fa-money-bill-wave text-amber-500"
+                            ></i>
+                            <span id="cardUlakanCash">Rp 0</span></span
+                        >
+                        <span
+                            ><i
+                                class="fa-solid fa-building-columns text-purple-500"
+                            ></i>
+                            <span id="cardUlakanBank">Rp 0</span></span
+                        >
+                    </div>
+                </div>
+            </div>
+
+            {/* KELOMPOK 3: SUMBER DANA */}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Card Biaya Tetap (Sistem) -->
+                <div
+                    class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between"
+                >
+                    <div>
+                        <span
+                            class="text-xs font-black uppercase tracking-wider text-slate-400 block mb-1"
+                            >Sumber: Sistem / Tetap</span
+                        >
+                        <h3
+                            class="text-2xl font-black text-pink-600"
+                            id="cardTotalSumberBiayaTetap"
+                        >
+                            Rp 0
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">
+                            Beban otomatis dari snapshot
+                        </p>
+                    </div>
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-pink-50 text-pink-600 flex items-center justify-center text-xl shrink-0"
+                    >
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                </div>
+
+                <!-- Card Laci Kasir -->
+                <div
+                    class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between"
+                >
+                    <div>
+                        <span
+                            class="text-xs font-black uppercase tracking-wider text-slate-400 block mb-1"
+                            >Sumber: Laci Kasir (Cash)</span
+                        >
+                        <h3
+                            class="text-2xl font-black text-amber-600"
+                            id="cardTotalLaci"
+                        >
+                            Rp 0
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">
+                            Uang tunai fisik keluar laci
+                        </p>
+                    </div>
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl shrink-0"
+                    >
+                        <i class="fa-solid fa-money-bill-wave"></i>
+                    </div>
+                </div>
+
+                <!-- Card Transfer Bank -->
+                <div
+                    class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between"
+                >
+                    <div>
+                        <span
+                            class="text-xs font-black uppercase tracking-wider text-slate-400 block mb-1"
+                            >Sumber: Transfer Bank (Real)</span
+                        >
+                        <h3
+                            class="text-2xl font-black text-purple-600"
+                            id="cardTotalBank"
+                        >
+                            Rp 0
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">
+                            Arus uang via rekening / M-Banking
+                        </p>
+                    </div>
+                    <div
+                        class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center text-xl shrink-0"
+                    >
+                        <i class="fa-solid fa-building-columns"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* Filter Rentang Tanggal & Pencarian */}
+        <div
+            class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden mb-8"
+        >
+            <div
+                class="p-6 border-b border-slate-100 bg-slate-50 flex flex-col lg:flex-row gap-6 justify-between items-center"
+            >
+                {/* Filter Tanggal */}
+                <div
+                    class="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto"
+                >
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <span class="text-sm font-bold text-slate-500"
+                            >Dari:</span
+                        >
+                        <input
+                            type="date"
+                            id="startDate"
+                            class="w-full sm:w-auto px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition"
+                        />
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <span class="text-sm font-bold text-slate-500"
+                            >s/d:</span
+                        >
+                        <input
+                            type="date"
+                            id="endDate"
+                            class="w-full sm:w-auto px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition"
+                        />
+                    </div>
+                    <button
+                        id="btnResetDate"
+                        class="w-full sm:w-auto px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-sm font-bold transition"
+                    >
+                        Reset Tanggal
+                    </button>
+                </div>
+
+                {/* Filter Teks & Kategori */}
+                <div
+                    class="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto"
+                >
+                    <input
+                        type="text"
+                        id="searchInput"
+                        placeholder="Cari keterangan..."
+                        class="w-full sm:w-48 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition"
+                    />
+                    <select
+                        id="filterKategori"
+                        class="w-full sm:w-auto px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="">Semua Kategori</option>
+                        <option value="biaya_tetap">Biaya Tetap Harian</option>
+                        <option value="operasional">Operasional</option>
+                        <option value="gaji">Gaji</option>
+                        <option value="kasbon">Kasbon</option>
+                        <option value="aset/ulakan">Ulakan / Aset</option>
+                        <option value="restok">Restok Grosir</option>
+                    </select>
+                </div>
+            </div>
+
+            {/* Tabel Data */}
+            <div class="overflow-x-auto">
+                <table
+                    class="w-full text-left text-sm text-slate-600 select-none"
+                >
+                    <thead
+                        class="bg-white text-xs uppercase font-black text-slate-500 border-b border-slate-200"
+                    >
+                        <tr>
+                            <th
+                                class="px-6 py-4 cursor-pointer hover:bg-slate-50 transition group"
+                                id="btnSortTanggal"
+                            >
+                                Tanggal <i
+                                    class="fa-solid fa-sort text-slate-300 group-hover:text-slate-500 ml-1"
+                                    id="iconSort"></i>
+                            </th>
+                            <th class="px-6 py-4">Keterangan</th>
+                            <th class="px-6 py-4 text-center">Kategori</th>
+                            <th class="px-6 py-4 text-center">Sumber Dana</th>
+                            <th class="px-6 py-4 text-right">Nominal</th>
+                            <th class="px-6 py-4 text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100" id="tableBody">
+                        {
+                            listPengeluaran.map((p) => {
+                                let badgeKategoriClass =
+                                    "bg-slate-100 text-slate-700 border-slate-200";
+                                if (p.kategori === "operasional")
+                                    badgeKategoriClass =
+                                        "bg-blue-50 text-blue-700 border-blue-200";
+                                else if (p.kategori === "gaji")
+                                    badgeKategoriClass =
+                                        "bg-purple-50 text-purple-700 border-purple-200";
+                                else if (p.kategori === "aset/ulakan")
+                                    badgeKategoriClass =
+                                        "bg-emerald-50 text-emerald-700 border-emerald-200";
+                                else if (p.kategori === "restok")
+                                    badgeKategoriClass =
+                                        "bg-indigo-50 text-indigo-700 border-indigo-200";
+                                else if (p.kategori === "kasbon")
+                                    badgeKategoriClass =
+                                        "bg-orange-50 text-orange-700 border-orange-200";
+                                else if (p.kategori === "biaya_tetap")
+                                    badgeKategoriClass =
+                                        "bg-pink-50 text-pink-700 border-pink-200";
+
+                                return (
+                                    <tr
+                                        class="hover:bg-slate-50 transition expense-row"
+                                        data-tanggal={p.tanggal_pengeluaran}
+                                        data-ket={(
+                                            p.keterangan || ""
+                                        ).toLowerCase()}
+                                        data-kat={p.kategori}
+                                        data-sumber={
+                                            p.sumber_dana || "laci_kasir"
+                                        }
+                                        data-nominal={p.nominal || 0}
+                                        data-terjual={p.modal_terjual || 0}
+                                    >
+                                        <td class="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">
+                                            {p.tanggal_pengeluaran}
+                                        </td>
+                                        <td class="px-6 py-4 font-bold text-slate-800">
+                                            {p.keterangan || "-"}
+                                        </td>
+                                        <td class="px-6 py-4 text-center">
+                                            <span
+                                                class={`inline-block px-3 py-1 rounded-full text-xs font-black uppercase border ${badgeKategoriClass}`}
+                                            >
+                                                {p.kategori === "biaya_tetap"
+                                                    ? "Biaya Tetap"
+                                                    : p.kategori}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 text-center">
+                                            {p.sumber_dana ===
+                                            "transfer_bank" ? (
+                                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                                    <i class="fa-solid fa-building-columns" />{" "}
+                                                    Bank
+                                                </span>
+                                            ) : p.sumber_dana ===
+                                              "biaya_tetap_harian" ? (
+                                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-pink-50 text-pink-700 border border-pink-200">
+                                                    <i class="fa-solid fa-clock" />{" "}
+                                                    Sistem
+                                                </span>
+                                            ) : (
+                                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                    <i class="fa-solid fa-money-bill-wave" />{" "}
+                                                    Laci Kasir
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td class="px-6 py-4 text-right font-black text-slate-800 whitespace-nowrap">
+                                            {formatRp(p.nominal)}
+                                        </td>
+                                        <td class="px-6 py-4 text-center">
+                                            <a
+                                                href={
+                                                    String(p.id).startsWith(
+                                                        "fix-",
+                                                    )
+                                                        ? "#"
+                                                        : `/pengeluaran/${p.id}`
+                                                }
+                                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
+                                                title={
+                                                    String(p.id).startsWith(
+                                                        "fix-",
+                                                    )
+                                                        ? "Otomatis via Sistem"
+                                                        : "Lihat Detail"
+                                                }
+                                            >
+                                                <i class="fa-solid fa-eye" />{" "}
+                                                Detail
+                                            </a>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div
+                class="px-6 py-4 border-t border-slate-100 bg-slate-50 text-xs font-medium text-slate-500"
+            >
+                Data yang tampil: <span
+                    class="font-bold text-slate-800"
+                    id="totalRecords">0</span
+                > baris.
+            </div>
+        </div>
+    </div>
+</Layout>
+
+<script is:inline>
+    // Referensi DOM
+    const searchInput = document.getElementById("searchInput");
+    const filterKategori = document.getElementById("filterKategori");
+    const startDate = document.getElementById("startDate");
+    const endDate = document.getElementById("endDate");
+    const btnResetDate = document.getElementById("btnResetDate");
+    const rows = document.querySelectorAll(".expense-row");
+
+    // Referensi Card Finansial
+    const cardTotalKotor = document.getElementById("cardTotalKotor");
+    const cardModalTerjual = document.getElementById("cardModalTerjual");
+    const cardTotalBersih = document.getElementById("cardTotalBersih");
+
+    // Kategori
+    const cardTotalBiayaTetap = document.getElementById("cardTotalBiayaTetap");
+    const cardTotalOperasional = document.getElementById(
+        "cardTotalOperasional",
+    );
+    const cardTotalGaji = document.getElementById("cardTotalGaji");
+    const cardTotalKasbon = document.getElementById("cardTotalKasbon");
+    const cardTotalRestok = document.getElementById("cardTotalRestok");
+    const cardTotalUlakan = document.getElementById("cardTotalUlakan");
+
+    // Sumber
+    const cardTotalSumberBiayaTetap = document.getElementById(
+        "cardTotalSumberBiayaTetap",
+    );
+    const cardTotalLaci = document.getElementById("cardTotalLaci");
+    const cardTotalBank = document.getElementById("cardTotalBank");
+    const totalRecords = document.getElementById("totalRecords");
+
+    const formatRp = (angka) =>
+        new Intl.NumberFormat("id-ID", {
+            style: "currency",
+            currency: "IDR",
+            maximumFractionDigits: 0,
+        }).format(angka || 0);
+
+    // Fungsi Utama Filter & Kalkulasi
+    function hitungDanFilter() {
+        let kotor = 0,
+            modalTerjual = 0,
+            biayaTetap = 0,
+            operasional = 0,
+            gaji = 0,
+            kasbon = 0,
+            restok = 0,
+            ulakan = 0,
+            laci = 0,
+            bank = 0,
+            sumberBiayaTetap = 0,
+            count = 0,
+            ulakanCash = 0,
+            ulakanBank = 0;
+
+        const q = searchInput ? searchInput.value.toLowerCase() : "";
+        const k = filterKategori ? filterKategori.value : "";
+        const sDate = startDate ? startDate.value : "";
+        const eDate = endDate ? endDate.value : "";
+
+        rows.forEach((row) => {
+            const rTanggalRaw = row.getAttribute("data-tanggal") || "";
+            const rTanggal = rTanggalRaw.split("T")[0].split(" ")[0];
+
+            const rKet = row.getAttribute("data-ket") || "";
+            const rKat = row.getAttribute("data-kat") || "";
+            const rSumber = row.getAttribute("data-sumber") || "";
+            const rNominal = parseFloat(row.getAttribute("data-nominal")) || 0;
+            const rTerjual = parseFloat(row.getAttribute("data-terjual")) || 0;
+
+            // Logika Pencocokan
+            const matchSearch = !q || rKet.includes(q);
+            const matchKategori = !k || rKat === k;
+
+            // Logika Filter Tanggal
+            let matchDate = true;
+            if (sDate && rTanggal < sDate) matchDate = false;
+            if (eDate && rTanggal > eDate) matchDate = false;
+
+            if (matchSearch && matchKategori && matchDate) {
+                row.style.display = "";
+
+                // PERBAIKAN: Hanya tambahkan ke 'kotor' dan 'modalTerjual'
+                // JIKA kategorinya BUKAN 'biaya_tetap'
+                if (rKat !== "biaya_tetap") {
+                    kotor += rNominal;
+                    modalTerjual += rTerjual;
+                }
+
+                // Hitung Per Kategori & Rincian Ulakan (Tetap Sama)
+                if (rKat === "aset/ulakan" || rKet.includes("ulakan")) {
+                    ulakan += rNominal;
+                    if (rSumber === "laci_kasir") ulakanCash += rNominal;
+                    if (rSumber === "transfer_bank") ulakanBank += rNominal;
+                } else if (rKat === "restok" || rKet.includes("restok")) {
+                    restok += rNominal;
+                } else if (rKat === "gaji") {
+                    gaji += rNominal;
+                } else if (rKat === "kasbon") {
+                    kasbon += rNominal;
+                } else if (rKat === "biaya_tetap") {
+                    biayaTetap += rNominal;
+                } else {
+                    operasional += rNominal;
+                }
+
+                // Hitung Per Sumber Dana
+                if (rSumber === "laci_kasir") laci += rNominal;
+                if (rSumber === "transfer_bank") bank += rNominal;
+                if (rSumber === "biaya_tetap_harian")
+                    sumberBiayaTetap += rNominal;
+
+                count++;
+            } else {
+                row.style.display = "none";
+            }
+        });
+
+        // Hitung Pengeluaran Bersih = Total Kotor - Modal Ulakan Terjual
+        const bersih = kotor - modalTerjual;
+
+        // Update UI Cards
+        if (cardTotalKotor) cardTotalKotor.innerText = formatRp(kotor);
+        if (cardModalTerjual)
+            cardModalTerjual.innerText = formatRp(modalTerjual);
+        if (cardTotalBersih) cardTotalBersih.innerText = formatRp(bersih);
+
+        if (cardTotalBiayaTetap)
+            cardTotalBiayaTetap.innerText = formatRp(biayaTetap);
+        if (cardTotalOperasional)
+            cardTotalOperasional.innerText = formatRp(operasional);
+        if (cardTotalGaji) cardTotalGaji.innerText = formatRp(gaji);
+        if (cardTotalKasbon) cardTotalKasbon.innerText = formatRp(kasbon);
+        if (cardTotalRestok) cardTotalRestok.innerText = formatRp(restok);
+        if (cardTotalUlakan) cardTotalUlakan.innerText = formatRp(ulakan);
+
+        if (cardTotalLaci) cardTotalLaci.innerText = formatRp(laci);
+        if (cardTotalBank) cardTotalBank.innerText = formatRp(bank);
+        if (cardTotalSumberBiayaTetap)
+            cardTotalSumberBiayaTetap.innerText = formatRp(sumberBiayaTetap);
+
+        if (totalRecords) totalRecords.innerText = count;
+
+        // Update Rincian Cash & Bank di Kartu Ulakan
+        const cardUlakanCashEl = document.getElementById("cardUlakanCash");
+        const cardUlakanBankEl = document.getElementById("cardUlakanBank");
+        if (cardUlakanCashEl) cardUlakanCashEl.innerText = formatRp(ulakanCash);
+        if (cardUlakanBankEl) cardUlakanBankEl.innerText = formatRp(ulakanBank);
+    }
+
+    // Set Default Filter: Bulan Ini
+    window.addEventListener("DOMContentLoaded", () => {
+        const date = new Date();
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const d = String(
+            new Date(y, date.getMonth() + 1, 0).getDate(),
+        ).padStart(2, "0");
+
+        startDate.value = `${y}-${m}-01`;
+        endDate.value = `${y}-${m}-${d}`;
+        hitungDanFilter();
+    });
+
+    // Event Listeners
+    if (searchInput) searchInput.addEventListener("keyup", hitungDanFilter);
+    if (filterKategori)
+        filterKategori.addEventListener("change", hitungDanFilter);
+    if (startDate) startDate.addEventListener("change", hitungDanFilter);
+    if (endDate) endDate.addEventListener("change", hitungDanFilter);
+
+    if (btnResetDate) {
+        btnResetDate.addEventListener("click", () => {
+            startDate.value = "";
+            endDate.value = "";
+            hitungDanFilter();
+        });
+    }
+
+    // Fitur Sortir Tanggal
+    const btnSortTanggal = document.getElementById("btnSortTanggal");
+    const iconSort = document.getElementById("iconSort");
+    const tbody = document.getElementById("tableBody");
+    let isAsc = false;
+
+    if (btnSortTanggal) {
+        btnSortTanggal.addEventListener("click", () => {
+            isAsc = !isAsc;
+            const rowsArr = Array.from(
+                document.querySelectorAll(".expense-row"),
+            );
+
+            rowsArr.sort((a, b) => {
+                const dateA = new Date(a.getAttribute("data-tanggal"));
+                const dateB = new Date(b.getAttribute("data-tanggal"));
+                return isAsc ? dateA - dateB : dateB - dateA;
+            });
+
+            rowsArr.forEach((row) => tbody.appendChild(row));
+            iconSort.className = isAsc
+                ? "fa-solid fa-sort-up text-indigo-600 ml-1"
+                : "fa-solid fa-sort-down text-indigo-600 ml-1";
+        });
+    }
+    // Fitur Ekspor Excel
+    const btnExportExcel = document.getElementById("btnExportExcel");
+    if (btnExportExcel) {
+        btnExportExcel.addEventListener("click", () => {
+            const sDate = startDate ? startDate.value : "";
+            const eDate = endDate ? endDate.value : "";
+
+            // Langsung arahkan ke halaman generator Excel
+            window.location.href = `/pengeluaran/ekspor-excel?start=${sDate}&end=${eDate}`;
+        });
+    }
+</script>

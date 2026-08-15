@@ -1,0 +1,157 @@
+---
+// src/layouts/Layout.astro
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+const pathname = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} | Bengkel Financial OS</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+  </head>
+  <body
+    class="bg-[#F3F4F6] text-slate-800 font-sans h-screen flex overflow-hidden"
+  >
+    <aside
+      class="w-64 bg-white border-r border-slate-200 flex-col hidden md:flex"
+    >
+      <div class="h-20 flex items-center px-8 border-b border-slate-100">
+        <div class="flex items-center gap-3">
+          <div
+            class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xl"
+          >
+            B
+          </div>
+          <span class="text-xl font-black tracking-tight text-slate-800"
+            >Mandiri<span class="text-indigo-600"> Jaya Motor</span></span
+          >
+        </div>
+      </div>
+
+      <div class="p-4 flex-1 overflow-y-auto space-y-1">
+        <p
+          class="px-4 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 mt-4"
+        >
+          Menu Utama
+        </p>
+        <a
+          href="/"
+          class={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${pathname === '/' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
+        >
+          <i class="fa-solid fa-chart-pie w-5"></i> Dashboard
+        </a>
+        <a
+          href="/transaksi/baru"
+          class={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${pathname === '/transaksi/baru' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
+        >
+          <i class="fa-solid fa-cash-register w-5"></i> Kasir / Transaksi
+        </a>
+        <a
+          href="/transaksi"
+          class={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${pathname === '/transaksi' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
+        >
+          <i class="fa-solid fa-receipt w-5"></i> Riwayat Transaksi
+        </a>
+
+        <p
+          class="px-4 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 mt-6"
+        >
+          Manajemen
+        </p>
+        <a
+          href="/produk"
+          class={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${pathname.startsWith('/produk') ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
+        >
+          <i class="fa-solid fa-box w-5"></i> Stok Produk
+        </a>
+        <a
+          href="/pengeluaran"
+          class={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${pathname.startsWith('/pengeluaran') ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
+        >
+          <i class="fa-solid fa-wallet w-5"></i> Restok & Pengeluaran
+        </a>
+
+        <a
+          href="/penggajian"
+          class={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${pathname.startsWith('/penggajian') ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
+        >
+          <i class="fa-solid fa-hand-holding-dollar w-5"></i> Penggajian & Komisi
+        </a>
+
+        <a
+          href="/kasbon"
+          class={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${pathname.startsWith('/kasbon') ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
+        >
+          <i class="fa-solid fa-money-bill-transfer w-5"></i> Kasbon Mekanik
+        </a>
+      </div>
+
+      <div class="px-4 py-2">
+        <a
+          href="/gantung"
+          class={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition-colors ${pathname.startsWith('/gantung') ? 'bg-amber-100 text-amber-800 font-bold' : 'text-amber-700 bg-amber-50 hover:bg-amber-100'}`}
+        >
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <span>Transaksi Gantung</span>
+        </a>
+      </div>
+
+      <div class="p-4 border-t border-slate-100">
+        <button
+          id="btnLogout"
+          class="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-sm font-bold text-red-600 hover:bg-red-50 transition cursor-pointer"
+        >
+          <i class="fa-solid fa-arrow-right-from-bracket w-5"></i> Logout
+        </button>
+      </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden bg-[#F8FAFC]">
+      <header
+        class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 md:hidden"
+      >
+        <span class="text-xl font-black text-slate-800"
+          >Bengkel<span class="text-indigo-600">OS</span></span
+        >
+        <button class="p-2 text-slate-600"
+          ><i class="fa-solid fa-bars text-xl"></i></button
+        >
+      </header>
+      <div class="flex-1 overflow-y-auto p-4 md:p-8">
+        <slot />
+      </div>
+    </main>
+  </body>
+</html>
+
+<script is:inline>
+  const btnLogout = document.getElementById('btnLogout');
+  
+  if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+      btnLogout.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin w-5"></i> Keluar...';
+      btnLogout.disabled = true;
+      btnLogout.classList.add("opacity-70", "cursor-not-allowed");
+
+      // Hapus KEDUA Cookie: Access Token dan Refresh Token
+      document.cookie = "directus_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "directus_refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 300);
+    });
+  }
+</script>

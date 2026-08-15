@@ -1,0 +1,165 @@
+---
+// src/pages/produk/[id].astro
+import Layout from "../../layouts/Layout.astro";
+import { getWithAuth } from "../../lib/api"; 
+
+const { id } = Astro.params;
+
+// 1. Ambil token dari cookie
+const token = Astro.cookies.get("directus_token")?.value;
+
+let produk = null;
+let errorMsg = null;
+
+try {
+    // 2. Gunakan helper axios milikmu
+    const response = await getWithAuth(`/items/produk/${id}`, token);
+    produk = response.data.data;
+} catch (error) {
+    console.error("Gagal menarik data produk:", error.message);
+    errorMsg = "Produk tidak ditemukan atau gagal memuat data.";
+}
+
+if (!produk && !errorMsg) {
+    return Astro.redirect("/produk");
+}
+---
+
+<Layout title={`Edit Produk - ${produk?.nama_produk || 'Error'}`}>
+    <div class="max-w-3xl mx-auto px-4 py-8">
+        
+        {/* Navigasi Kembali */}
+        <div class="mb-6">
+            <a href="/produk" class="text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-2 text-sm transition">
+                <i class="fa-solid fa-arrow-left"></i> Batal & Kembali
+            </a>
+        </div>
+
+        {errorMsg ? (
+            <div class="bg-red-50 text-red-700 p-4 rounded-xl mb-6">
+                {errorMsg}
+            </div>
+        ) : (
+            <>
+                {/* Header */}
+                <div class="mb-8">
+                    <h1 class="text-3xl font-black text-slate-800 tracking-tight">Edit Produk</h1>
+                    <p class="text-slate-500 mt-1">Ubah rincian data atau sesuaikan stok fisik untuk <span class="font-bold text-slate-700">{produk.nama_produk}</span>.</p>
+                </div>
+
+                {/* Form Card */}
+                <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
+                    <form id="formEditProduk" class="space-y-6" data-id={produk.id}>
+                        
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Nama Produk <span class="text-red-500">*</span></label>
+                            <input 
+                                type="text" 
+                                id="namaProduk" 
+                                value={produk.nama_produk}
+                                class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition"
+                                required
+                            />
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">Penyesuaian Stok (Qty)</label>
+                                <input 
+                                    type="number" 
+                                    id="stokQty" 
+                                    value={produk.stok_qty}
+                                    min="0"
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition"
+                                    required
+                                />
+                                <p class="text-xs text-amber-600 mt-2"><i class="fa-solid fa-triangle-exclamation"></i> Ubah hanya untuk penyesuaian/stok opname manual.</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-100 pt-6">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">Harga Modal (Rp) <span class="text-red-500">*</span></label>
+                                <input 
+                                    type="number" 
+                                    id="hargaModal" 
+                                    value={produk.harga_modal}
+                                    min="0"
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-2">Harga Jual (Rp) <span class="text-red-500">*</span></label>
+                                <input 
+                                    type="number" 
+                                    id="hargaJual" 
+                                    value={produk.harga_jual}
+                                    min="0"
+                                    class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div class="pt-4 border-t border-slate-100 flex justify-end">
+                            <button type="submit" id="btnSimpan" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-sm transition inline-flex items-center gap-2">
+                                <i class="fa-solid fa-save"></i> Perbarui Produk
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </>
+        )}
+    </div>
+</Layout>
+
+<script is:inline>
+    const form = document.getElementById('formEditProduk');
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const idProduk = form.getAttribute('data-id');
+            const namaProduk = document.getElementById('namaProduk').value;
+            const stokQty = document.getElementById('stokQty').value;
+            const hargaModal = document.getElementById('hargaModal').value;
+            const hargaJual = document.getElementById('hargaJual').value;
+
+            const btn = document.getElementById('btnSimpan');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...`;
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/edit-produk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        id: idProduk,
+                        nama_produk: namaProduk,
+                        stok_qty: parseInt(stokQty),
+                        harga_modal: parseInt(hargaModal),
+                        harga_jual: parseInt(hargaJual)
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert("Sukses! " + result.message);
+                    window.location.href = "/produk"; 
+                } else {
+                    alert("Gagal: " + result.message);
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                alert("Terjadi kesalahan jaringan atau server.");
+                console.error(error);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        });
+    }
+</script>

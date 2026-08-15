@@ -1,0 +1,191 @@
+---
+// src/pages/produk/index.astro
+import Layout from "../../layouts/Layout.astro";
+import { getWithAuth } from "../../lib/api"; 
+
+// 1. Ambil token dari cookie
+const token = Astro.cookies.get("directus_token")?.value;
+
+let listProduk = [];
+let isError = false;
+
+try {
+    // 2. Gunakan helper axios milikmu
+    const response = await getWithAuth("/items/produk?sort=nama_produk", token);
+    listProduk = response.data.data || [];
+} catch (error) {
+    console.error("Gagal menarik data produk:", error.message);
+    isError = true;
+}
+
+const formatRp = (angka) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(angka || 0);
+---
+
+<Layout title="Katalog Produk">
+    <div class="max-w-7xl mx-auto">
+        
+        {/* Header Section */}
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div>
+                <h1 class="text-3xl font-black text-slate-800 tracking-tight">Katalog Stok Produk</h1>
+                <p class="text-slate-500 mt-1">Pantau sisa kuantitas barang, harga beli, dan harga jual.</p>
+            </div>
+            
+            {/* Tombol Tambah (Diarahkan ke halaman form) */}
+            <a href="/produk/baru" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition inline-flex items-center justify-center gap-2">
+                <i class="fa-solid fa-plus"></i> Tambah Produk
+            </a>
+        </div>
+
+        {isError && (
+            <div class="bg-red-50 text-red-700 p-4 rounded-xl mb-6 flex items-center gap-3">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>Gagal memuat data dari database. Periksa koneksi ke server.</span>
+            </div>
+        )}
+
+        {/* Filter / Search Bar */}
+        <div class="bg-white p-4 rounded-t-3xl shadow-sm border-x border-t border-slate-200">
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <i class="fa-solid fa-search text-slate-400"></i>
+                </div>
+                <input 
+                    type="text" 
+                    id="searchInput"
+                    placeholder="Cari nama produk..." 
+                    class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+                >
+            </div>
+        </div>
+
+        {/* Tabel Produk */}
+        <div class="bg-white rounded-b-3xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-600 select-none">
+                    <thead class="bg-slate-50 text-xs uppercase font-black text-slate-500 border-b border-slate-200">
+                        <tr>
+                            <th class="px-6 py-4 cursor-pointer hover:bg-slate-100 transition group" onclick="sortTable('nama', 'string')">
+                                Nama Produk <i class="fa-solid fa-sort text-slate-300 group-hover:text-slate-500 ml-1"></i>
+                            </th>
+                            <th class="px-6 py-4 text-center cursor-pointer hover:bg-slate-100 transition group" onclick="sortTable('stok', 'number')">
+                                Stok (Qty) <i class="fa-solid fa-sort text-slate-300 group-hover:text-slate-500 ml-1"></i>
+                            </th>
+                            <th class="px-6 py-4 text-right cursor-pointer hover:bg-slate-100 transition group" onclick="sortTable('modal', 'number')">
+                                Harga Modal <i class="fa-solid fa-sort text-slate-300 group-hover:text-slate-500 ml-1"></i>
+                            </th>
+                            <th class="px-6 py-4 text-right cursor-pointer hover:bg-slate-100 transition group" onclick="sortTable('jual', 'number')">
+                                Harga Jual <i class="fa-solid fa-sort text-slate-300 group-hover:text-slate-500 ml-1"></i>
+                            </th>
+                            <th class="px-6 py-4 text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100" id="tableBody">
+                        {listProduk.length === 0 ? (
+                            <tr>
+                                <td colspan="5" class="px-6 py-12 text-center text-slate-400">
+                                    <i class="fa-solid fa-box-open text-3xl mb-3 block"></i>
+                                    Tidak ada produk yang ditemukan.
+                                </td>
+                            </tr>
+                        ) : (
+                            listProduk.map((p) => (
+                                /* Kita menaruh atribut data-* agar JS mudah melakukan sorting angka mentah */
+                                <tr class="hover:bg-slate-50 transition product-row" 
+                                    data-nama={p.nama_produk.toLowerCase()} 
+                                    data-stok={p.stok_qty} 
+                                    data-modal={p.harga_modal} 
+                                    data-jual={p.harga_jual}>
+                                    
+                                    <td class="px-6 py-4 font-bold text-slate-800 product-name">
+                                        {p.nama_produk}
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        {p.stok_qty <= 5 ? (
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black bg-red-100 text-red-700 border border-red-200">
+                                                {p.stok_qty}
+                                            </span>
+                                        ) : (
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                                {p.stok_qty}
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td class="px-6 py-4 text-right text-slate-500">
+                                        {formatRp(p.harga_modal)}
+                                    </td>
+                                    <td class="px-6 py-4 text-right font-bold text-emerald-600">
+                                        {formatRp(p.harga_jual)}
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        {/* Tombol Edit diarahkan ke halaman detail produk */}
+                                        <a href={`/produk/${p.id}`} class="text-slate-400 hover:text-indigo-600 transition px-2 inline-block" title="Edit Produk">
+                                            <i class="fa-solid fa-pen-to-square"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 text-xs font-medium text-slate-500">
+                Total <span class="font-bold text-slate-800">{listProduk.length}</span> item di dalam database.
+            </div>
+        </div>
+
+    </div>
+</Layout>
+
+<script is:inline>
+    // 1. Fitur Pencarian
+    const searchInput = document.getElementById('searchInput');
+    const tableRows = Array.from(document.querySelectorAll('.product-row'));
+
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function(e) {
+            const query = e.target.value.toLowerCase();
+            tableRows.forEach(row => {
+                const productName = row.getAttribute('data-nama');
+                if (productName.includes(query)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // 2. Fitur Sorting (Urutkan Kolom)
+    let currentSort = { column: null, isAsc: true };
+
+    function sortTable(column, type) {
+        const tbody = document.getElementById('tableBody');
+        
+        // Cek arah urutan (Ascending/Descending)
+        if (currentSort.column === column) {
+            currentSort.isAsc = !currentSort.isAsc;
+        } else {
+            currentSort.column = column;
+            currentSort.isAsc = true;
+        }
+
+        const multiplier = currentSort.isAsc ? 1 : -1;
+
+        tableRows.sort((a, b) => {
+            const valA = a.getAttribute(`data-${column}`);
+            const valB = b.getAttribute(`data-${column}`);
+
+            if (type === 'number') {
+                return (parseFloat(valA) - parseFloat(valB)) * multiplier;
+            } else {
+                return valA.localeCompare(valB) * multiplier;
+            }
+        });
+
+        // Hapus isi tabel lalu render ulang dengan urutan baru
+        tbody.innerHTML = '';
+        tableRows.forEach(row => tbody.appendChild(row));
+    }
+</script>

@@ -1,0 +1,164 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { api } from "../lib/api";
+
+// 1. CEK STATUS LOGIN (Apakah ada cookie token?)
+const token = Astro.cookies.get("directus_token")?.value;
+
+// Jika tidak ada token (belum login atau kedaluwarsa), tendang ke halaman login
+if (!token) {
+    return Astro.redirect("/login");
+}
+
+// 2. PASANG TOKEN KE AXIOS (Suntikkan agar api.patch & api.get tidak ditolak)
+api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+// 1. FUNGSI POST: MENGUBAH STATUS MENJADI LUNAS DAN MENCATAT METODE PEMBAYARAN
+if (Astro.request.method === "POST") {
+    try {
+        const formData = await Astro.request.formData();
+        const trxId = formData.get("trx_id");
+        const metode = formData.get("metode_pembayaran");
+
+        if (trxId && metode) {
+            await api.patch(`/items/transaksi/${trxId}`, {
+                status_nota: "lunas",
+                metode_pembayaran: metode // Menyimpan metode pembayaran ke database
+            });
+            return Astro.redirect("/gantung");
+        }
+    } catch (error) {
+        console.error("Gagal melunasi transaksi:", error);
+    }
+}
+
+// 2. AMBIL DATA GANTUNG (PROSES)
+let transaksiGantung = [];
+try {
+    const res = await api.get(
+        "/items/transaksi?filter[status_nota][_eq]=proses&sort=-tanggal_transaksi&fields=*,detail_transaksi.*,detail_transaksi.produk_id.*"
+    );
+    transaksiGantung = res.data.data || [];
+} catch (error) {
+    console.error("Gagal mengambil data gantung:", error);
+}
+
+// Helper Format Rupiah
+const formatRp = (angka) => {
+    return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+    }).format(Number(angka));
+};
+
+// Helper Format Tanggal
+const formatTanggalWIB = (isoString) => {
+    if (!isoString) return "-";
+    const date = new Date(isoString);
+    return new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Jakarta",
+        day: "2-digit", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+    }).format(date) + " WIB";
+};
+---
+
+<Layout title="Daftar Transaksi Gantung">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="mb-8">
+            <h2 class="text-3xl font-black text-slate-800 tracking-tight">
+                Transaksi Gantung
+            </h2>
+            <p class="text-slate-500 text-sm mt-1">
+                Daftar nota yang statusnya masih "proses". Diurutkan dari yang terbaru.
+            </p>
+        </div>
+
+        <div class="space-y-6">
+            {transaksiGantung.length === 0 ? (
+                <div class="bg-white p-10 rounded-2xl border border-slate-200 text-center shadow-sm">
+                    <i class="fa-solid fa-check-circle text-4xl text-emerald-500 mb-3"></i>
+                    <h3 class="text-lg font-bold text-slate-700">Tidak ada transaksi gantung!</h3>
+                    <p class="text-slate-500 text-sm">Semua nota sudah lunas. Kerja bagus!</p>
+                </div>
+            ) : (
+                transaksiGantung.map((trx) => (
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <!-- Header Nota -->
+                        <div class="bg-amber-50/50 p-5 border-b border-amber-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                                    <i class="fa-solid fa-receipt text-amber-500"></i>
+                                    Nota #{trx.id}
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1">
+                                    {formatTanggalWIB(trx.tanggal_transaksi)}
+                                </p>
+                            </div>
+                            <div class="text-left md:text-right">
+                                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Tagihan</p>
+                                <p class="text-xl font-black text-amber-600">{formatRp(trx.total_harga)}</p>
+                            </div>
+                        </div>
+
+                        <!-- Detail Item di dalam Nota -->
+                        <div class="p-5">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Detail Item:</h4>
+                            <ul class="divide-y divide-slate-100 mb-5 border border-slate-100 rounded-lg overflow-hidden">
+                                {trx.detail_transaksi && trx.detail_transaksi.length > 0 ? (
+                                    trx.detail_transaksi.map((detail) => (
+                                        <li class="p-3 bg-slate-50 flex justify-between items-center text-sm">
+                                            <div class="flex items-center gap-3">
+                                                <span class={`px-2 py-1 rounded text-[10px] font-bold uppercase ${detail.tipe_item === 'ulakan' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                    {detail.tipe_item || 'Item'}
+                                                </span>
+                                                <span class="font-medium text-slate-700">
+                                                    {detail.produk_id?.nama_produk || 'Jasa / Manual'}
+                                                </span>
+                                            </div>
+                                            <div class="text-right">
+                                                <span class="text-slate-500 text-xs">{detail.qty}x </span>
+                                                <span class="font-bold text-slate-700">{formatRp(detail.harga_jual_snapshot)}</span>
+                                            </div>
+                                        </li>
+                                    ))
+                                ) : (
+                                    <li class="p-3 text-sm text-slate-400 italic">Tidak ada rincian item.</li>
+                                )}
+                            </ul>
+
+                            <!-- Tombol Aksi Pelunasan -->
+                            <div class="flex justify-between items-center pt-4 border-t border-slate-100 gap-3">
+                                <a 
+                                    href={`/transaksi/editnota?id=${trx.id}`} 
+                                    class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition shadow-sm flex items-center gap-2"
+                                >
+                                    <i class="fa-solid fa-pen"></i> Edit
+                                </a>
+
+                                <!-- Form Pelunasan dengan Pilihan Metode -->
+                                <form method="POST" class="flex gap-2 items-center" onsubmit="return confirm('Yakin ingin menandai nota ini sebagai Lunas?');">
+                                    <input type="hidden" name="trx_id" value={trx.id} />
+                                    
+                                    <select name="metode_pembayaran" required class="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block p-2.5 outline-none font-medium">
+                                        <option value="" disabled selected>Pilih Pembayaran...</option>
+                                        <option value="cash">Cash (Tunai)</option>
+                                        <option value="qris">QRIS / Transfer</option>
+                                    </select>
+
+                                    <button 
+                                        type="submit"
+                                        class="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition shadow-sm flex items-center gap-2"
+                                    >
+                                        <i class="fa-solid fa-check"></i> Lunas
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                ))
+            )}
+        </div>
+    </div>
+</Layout>
