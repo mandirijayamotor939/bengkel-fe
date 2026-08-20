@@ -42,13 +42,26 @@ try {
     const response = await api.get(endpoint, config);
     let rawData = response.data.data || [];
 
-    // 3. Filter by Kategori Item menggunakan JavaScript (Agar sibling item di dalam nota tetap utuh)
+// 3. Filter by Kategori Item menggunakan JavaScript (Filter isi detail nota)
     if (kategoriFilter !== "semua") {
-        listTransaksi = rawData.filter((trx: any) => {
-            if (!trx.detail_transaksi) return false;
-            // Cek apakah di dalam nota ini ADA item yang tipenya sama dengan filter
-            return trx.detail_transaksi.some((item: any) => item.tipe_item === kategoriFilter);
-        });
+        listTransaksi = rawData.reduce((acc: any[], trx: any) => {
+            if (!trx.detail_transaksi) return acc;
+            
+            // Saring HANYA item yang tipenya sesuai dengan filter
+            const filteredDetails = trx.detail_transaksi.filter(
+                (item: any) => item.tipe_item === kategoriFilter
+            );
+
+            // Jika setelah disaring itemnya masih ada, masukkan ke list tampilan
+            if (filteredDetails.length > 0) {
+                acc.push({
+                    ...trx, // Salin seluruh data nota (termasuk total harga asli)
+                    detail_transaksi: filteredDetails // Timpa detailnya dengan yang sudah disaring
+                });
+            }
+            
+            return acc;
+        }, []);
     } else {
         listTransaksi = rawData;
     }
@@ -334,18 +347,27 @@ const formatRp = (angka: number) => {
                                                 )}
                                             </div>
                                         </td>
-
-                                        <!-- Status -->
+                                        
+                                        <!-- Status & Pembayaran -->
                                         <td class="p-4">
-                                            {trx.status_nota === 'lunas' ? (
-                                                <span class="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-wide">
-                                                    Lunas
+                                            <div class="flex flex-col items-start gap-2">
+                                                <!-- Status Lunas / Gantung -->
+                                                {trx.status_nota === 'lunas' ? (
+                                                    <span class="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-wide">
+                                                        Lunas
+                                                    </span>
+                                                ) : (
+                                                    <span class="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-wide flex items-center gap-1 w-max">
+                                                        <i class="fa-solid fa-clock"></i> Gantung
+                                                    </span>
+                                                )}
+
+                                                <!-- Tipe Pembayaran (Cash / QRIS) -->
+                                                <span class={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 border ${trx.metode_pembayaran === 'qris' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                                    <i class="fa-solid fa-wallet"></i> 
+                                                    {trx.metode_pembayaran ? trx.metode_pembayaran : 'CASH'}
                                                 </span>
-                                            ) : (
-                                                <span class="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-wide flex items-center gap-1 w-max">
-                                                    <i class="fa-solid fa-clock"></i> Gantung
-                                                </span>
-                                            )}
+                                            </div>
                                         </td>
 
                                         <!-- Tagihan & Profit -->
