@@ -119,7 +119,13 @@ listStatistik.forEach((stat: any) => {
 // 5. Helper Format Tanggal & Rupiah
 const formatTanggal = (isoString: string) => {
     if (!isoString) return "-";
-    const date = new Date(isoString);
+    
+    // 1. Hapus huruf 'Z' di belakang jika kebetulan ada bawaan dari API
+    let cleanString = isoString.replace("Z", "");
+    
+    // 2. Paksa tempelkan +07:00 agar JS tahu ini adalah jam WIB
+    const date = new Date(`${cleanString}+07:00`);
+    
     return new Intl.DateTimeFormat("id-ID", {
         timeZone: "Asia/Jakarta",
         day: "2-digit", month: "short", year: "numeric",
