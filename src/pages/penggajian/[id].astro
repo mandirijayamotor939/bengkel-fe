@@ -50,10 +50,18 @@ try {
     );
     listAbsensi = resAbsensi.data.data || [];
 
-    // 5. Tarik Data Kasbon
+// 5. Tarik Data Kasbon
     if (!sudahDibayar) {
+        // [KONDISI 1]: Jika BELUM dibayar, tarik semua kasbon yang belum dilunasi
         const resKasbon = await getWithAuth(
             `/items/kasbon_mekanik?filter[mekanik_id][_eq]=${id}&filter[status_potong][_eq]=belum_lunas`, 
+            token
+        );
+        listKasbon = resKasbon.data.data || [];
+    } else {
+        // [KONDISI 2]: Jika SUDAH dibayar, tarik histori kasbon khusus pada rentang tanggal yang dipilih saja
+        const resKasbon = await getWithAuth(
+            `/items/kasbon_mekanik?filter[mekanik_id][_eq]=${id}&filter[tanggal][_gte]=${start}&filter[tanggal][_lte]=${end}`, 
             token
         );
         listKasbon = resKasbon.data.data || [];

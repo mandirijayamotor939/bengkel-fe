@@ -24,8 +24,9 @@ export async function POST({ request, cookies }) {
         }
 
         // 2. Buat Data Pengeluaran Kas DULU (Jika THP > 0) untuk mendapatkan ID-nya
+        const parsedThp = parseInt(nominal_thp, 10) || 0;
         let idPengeluaran = null;
-        if (nominal_thp > 0) {
+        if (parsedThp > 0) {
             const tanggalWIB = new Intl.DateTimeFormat('en-CA', {
                 timeZone: 'Asia/Jakarta',
                 year: 'numeric',
@@ -36,8 +37,8 @@ export async function POST({ request, cookies }) {
             const resPengeluaran = await postWithAuth('/items/pengeluaran', {
                 tanggal_pengeluaran: tanggalWIB, 
                 keterangan: `Pembayaran THP ${nama_mekanik} (${periode_mulai} s.d ${periode_selesai})`,
-                nominal: nominal_thp,
-                kategori: "gaji", // Kategori ini harus ada di dropdown tabel pengeluaran
+                nominal: parsedThp,
+                kategori: "gaji", 
                 sumber_dana: sumber_dana
             }, token);
             
@@ -50,7 +51,7 @@ export async function POST({ request, cookies }) {
             mekanik_id: mekanik_id,
             periode_mulai: periode_mulai,
             periode_selesai: periode_selesai,
-            nominal_thp: nominal_thp,
+            nominal_thp: parsedThp,
             deskripsi: deskripsi,
             pengeluaran_id: idPengeluaran // <--- Data dihubungkan di sini
         }, token);

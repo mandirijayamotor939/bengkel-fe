@@ -134,28 +134,28 @@ export async function GET({ request, cookies }) {
             }
         }
 
-        // 4.5 Tarik Data Kasbon Khusus
-        try {
-            const resKasbon = await api.get(`/items/kasbon_mekanik?filter[tanggal][_gte]=${startDate}&filter[tanggal][_lte]=${endDate}&fields=mekanik_id.nama_mekanik,nominal,keterangan,sumber_dana`, authConfig);
-            const dataKasbon = resKasbon.data.data || [];
+        // // 4.5 Tarik Data Kasbon Khusus
+        // try {
+        //     const resKasbon = await api.get(`/items/kasbon_mekanik?filter[tanggal][_gte]=${startDate}&filter[tanggal][_lte]=${endDate}&fields=mekanik_id.nama_mekanik,nominal,keterangan,sumber_dana`, authConfig);
+        //     const dataKasbon = resKasbon.data.data || [];
 
-            for (const kb of dataKasbon) {
-                const nominal = Number(kb.nominal || 0);
-                const nama = kb.mekanik_id?.nama_mekanik || "Tanpa Nama";
-                const ket = kb.keterangan ? kb.keterangan.trim() : "Kasbon";
-                const teksKasbon = ` - [KASBON] ${nama} (${ket})`;
+        //     for (const kb of dataKasbon) {
+        //         const nominal = Number(kb.nominal || 0);
+        //         const nama = kb.mekanik_id?.nama_mekanik || "Tanpa Nama";
+        //         const ket = kb.keterangan ? kb.keterangan.trim() : "Kasbon";
+        //         const teksKasbon = ` - [KASBON] ${nama} (${ket})`;
 
-                if (kb.sumber_dana === "transfer_bank") {
-                    totalPengeluaranBankSemua += nominal;
-                    listPengeluaranBank.push({ Keterangan: teksKasbon, Nominal: nominal });
-                } else {
-                    totalPengeluaranCashSemua += nominal;
-                    listPengeluaranCash.push({ Keterangan: teksKasbon, Nominal: nominal });
-                }
-            }
-        } catch (e) {
-            console.warn("Gagal menarik rincian kasbon:", e.message);
-        }
+        //         if (kb.sumber_dana === "transfer_bank") {
+        //             totalPengeluaranBankSemua += nominal;
+        //             listPengeluaranBank.push({ Keterangan: teksKasbon, Nominal: nominal });
+        //         } else {
+        //             totalPengeluaranCashSemua += nominal;
+        //             listPengeluaranCash.push({ Keterangan: teksKasbon, Nominal: nominal });
+        //         }
+        //     }
+        // } catch (e) {
+        //     console.warn("Gagal menarik rincian kasbon:", e.message);
+        // }
 
         // 5. Tarik Data Absensi
         let uniqueMekanikHadir = [];
