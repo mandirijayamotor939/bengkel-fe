@@ -445,6 +445,15 @@ const formatRp = (angka) =>
                         <option value="aset/ulakan">Ulakan / Aset</option>
                         <option value="restok">Restok Grosir</option>
                     </select>
+                    <select
+                        id="filterSumberDana"
+                        class="w-full sm:w-auto px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="">Semua Sumber Dana</option>
+                        <option value="laci_kasir">Laci Kasir</option>
+                        <option value="transfer_bank">Transfer Bank</option>
+                        <option value="biaya_tetap_harian">Sistem / Tetap</option>
+                    </select>
                 </div>
             </div>
 
@@ -593,6 +602,7 @@ const formatRp = (angka) =>
     // Referensi DOM
     const searchInput = document.getElementById("searchInput");
     const filterKategori = document.getElementById("filterKategori");
+    const filterSumberDana = document.getElementById("filterSumberDana");
     const startDate = document.getElementById("startDate");
     const endDate = document.getElementById("endDate");
     const btnResetDate = document.getElementById("btnResetDate");
@@ -647,12 +657,14 @@ const formatRp = (angka) =>
 
         const q = searchInput ? searchInput.value.toLowerCase() : "";
         const k = filterKategori ? filterKategori.value : "";
+        const s = filterSumberDana ? filterSumberDana.value : "";
         const sDate = startDate ? startDate.value : "";
         const eDate = endDate ? endDate.value : "";
 
         rows.forEach((row) => {
             const rTanggalRaw = row.getAttribute("data-tanggal") || "";
             const rTanggal = rTanggalRaw.split("T")[0].split(" ")[0];
+            
 
             const rKet = row.getAttribute("data-ket") || "";
             const rKat = row.getAttribute("data-kat") || "";
@@ -663,13 +675,14 @@ const formatRp = (angka) =>
             // Logika Pencocokan
             const matchSearch = !q || rKet.includes(q);
             const matchKategori = !k || rKat === k;
+            const matchSumber = !s || rSumber === s;
 
             // Logika Filter Tanggal
             let matchDate = true;
             if (sDate && rTanggal < sDate) matchDate = false;
             if (eDate && rTanggal > eDate) matchDate = false;
 
-            if (matchSearch && matchKategori && matchDate) {
+            if (matchSearch && matchKategori && matchDate && matchSumber) {
                 row.style.display = "";
 
                 // PERBAIKAN: Hanya tambahkan ke 'kotor' dan 'modalTerjual'
@@ -758,6 +771,8 @@ const formatRp = (angka) =>
     if (searchInput) searchInput.addEventListener("keyup", hitungDanFilter);
     if (filterKategori)
         filterKategori.addEventListener("change", hitungDanFilter);
+    if (filterSumberDana)
+        filterSumberDana.addEventListener("change", hitungDanFilter);
     if (startDate) startDate.addEventListener("change", hitungDanFilter);
     if (endDate) endDate.addEventListener("change", hitungDanFilter);
 
