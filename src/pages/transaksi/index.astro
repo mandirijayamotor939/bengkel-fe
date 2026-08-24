@@ -17,8 +17,8 @@ const token = Astro.cookies.get("directus_token")?.value;
 const config = { headers: { Authorization: `Bearer ${token}` } };
 
 try {
-    // 2. Susun endpoint (Hanya filter Parent/Header lewat API agar isi detail tidak terpotong)
-    let endpoint = "/items/transaksi?fields=*,detail_transaksi.*&sort=-tanggal_transaksi";
+// 2. Susun endpoint (Tambahkan relasi ke mekanik_id untuk menarik nama dan komisi per orang)
+    let endpoint = "/items/transaksi?fields=*,detail_transaksi.*,detail_transaksi.mekanik_id.*,detail_transaksi.mekanik_id.mekanik_id.nama_mekanik&sort=-tanggal_transaksi";
     let filterQuery = [];
     
     // Filter by Status
@@ -144,74 +144,7 @@ const formatRp = (angka: number) => {
 
 <Layout title="Riwayat Transaksi">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        <!-- Header Section -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-            <div>
-                <h2 class="text-3xl font-black text-slate-800 tracking-tight">
-                    Riwayat Transaksi
-                </h2>
-                <p class="text-slate-500 text-sm mt-1">
-                    Daftar seluruh nota penjualan, statistik, dan rincian detail item.
-                </p>
-            </div>
-            <a href="/transaksi/baru" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-indigo-200 flex items-center gap-2 shrink-0">
-                <i class="fa-solid fa-plus"></i> Buat Transaksi Baru
-            </a>
-        </div>
-
-        <!-- Statistik Items (Format Tabel) -->
-        {listStatistik.length > 0 && (
-            <div class="mb-8">
-                <h3 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
-                    <i class="fa-solid fa-chart-line text-indigo-500"></i> Statistik Penjualan (Berdasarkan Filter)
-                </h3>
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-indigo-50 border-b border-indigo-100 text-indigo-800 text-xs uppercase tracking-wider">
-                                    <th class="p-4 font-bold">Nama Item / Jasa</th>
-                                    <th class="p-4 font-bold">Kategori</th>
-                                    <th class="p-4 font-bold text-center">Terjual</th>
-                                    <th class="p-4 font-bold text-right">Total Modal</th>
-                                    <th class="p-4 font-bold text-right">Total Jual</th>
-                                    <th class="p-4 font-bold text-right">Total Untung</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100">
-                                {listStatistik.map((stat: any) => (
-                                    <tr class="hover:bg-slate-50 transition text-sm">
-                                        <td class="p-4 font-bold text-slate-700">{stat.nama}</td>
-                                        <td class="p-4">
-                                            <span class={`text-[10px] font-black uppercase px-2 py-1 rounded-md tracking-wider ${stat.tipe === 'jasa' ? 'bg-purple-100 text-purple-700' : stat.tipe === 'ulakan' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                {stat.tipe}
-                                            </span>
-                                        </td>
-                                        <td class="p-4 text-center font-bold text-slate-800">{stat.qty_terjual}x</td>
-                                        <td class="p-4 text-right text-slate-500">{formatRp(stat.total_modal)}</td>
-                                        <td class="p-4 text-right font-medium text-slate-700">{formatRp(stat.total_jual)}</td>
-                                        <td class="p-4 text-right font-bold text-emerald-600">{formatRp(stat.total_profit)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                            <!-- Penjumlahan Total Statistik -->
-                            <tfoot class="bg-slate-50 border-t-2 border-slate-200 font-bold text-sm">
-                                <tr>
-                                    <td colspan="2" class="p-4 text-right text-slate-600 uppercase tracking-wider">Total Keseluruhan:</td>
-                                    <td class="p-4 text-center text-slate-800">{totalStatQty}x</td>
-                                    <td class="p-4 text-right text-slate-500">{formatRp(totalStatModal)}</td>
-                                    <td class="p-4 text-right text-slate-800">{formatRp(totalStatJual)}</td>
-                                    <td class="p-4 text-right text-emerald-600 text-base">{formatRp(totalStatProfit)}</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        )}
-
-        <!-- Filter / Searching Section -->
+                <!-- Filter / Searching Section -->
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
             <form method="GET" action="/transaksi" class="flex flex-col lg:flex-row gap-4 items-end">
                 
@@ -281,6 +214,86 @@ const formatRp = (angka: number) => {
                 </div>
             </form>
         </div>
+        <!-- Header Section -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <h2 class="text-3xl font-black text-slate-800 tracking-tight">
+                    Riwayat Transaksi
+                </h2>
+                <p class="text-slate-500 text-sm mt-1">
+                    Daftar seluruh nota penjualan, statistik, dan rincian detail item.
+                </p>
+            </div>
+            
+            {/* INI BAGIAN YANG BERUBAH: Dibuat jadi flex agar bisa 2 tombol */}
+            <div class="flex gap-3 shrink-0">
+                
+                {listTransaksi.length > 0 ? (
+                    <a 
+                        href={`/cetak-massal${url.search}`} 
+                        target="_blank"
+                        class="bg-white border-2 border-slate-200 hover:border-slate-800 text-slate-700 hover:text-slate-900 px-6 py-3 rounded-xl font-bold transition flex items-center gap-2"
+                    >
+                        <i class="fa-solid fa-print"></i> Cetak Rekap
+                    </a>
+                ) : null}
+                
+                <a href="/transaksi/baru" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-indigo-200 flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Buat Transaksi
+                </a>
+            </div>
+        </div>
+
+        <!-- Statistik Items (Format Tabel) -->
+        {listStatistik.length > 0 && (
+            <div class="mb-8">
+                <h3 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line text-indigo-500"></i> Statistik Penjualan (Berdasarkan Filter)
+                </h3>
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-indigo-50 border-b border-indigo-100 text-indigo-800 text-xs uppercase tracking-wider">
+                                    <th class="p-4 font-bold">Nama Item / Jasa</th>
+                                    <th class="p-4 font-bold">Kategori</th>
+                                    <th class="p-4 font-bold text-center">Terjual</th>
+                                    <th class="p-4 font-bold text-right">Total Modal</th>
+                                    <th class="p-4 font-bold text-right">Total Jual</th>
+                                    <th class="p-4 font-bold text-right">Total Untung</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                {listStatistik.map((stat: any) => (
+                                    <tr class="hover:bg-slate-50 transition text-sm">
+                                        <td class="p-4 font-bold text-slate-700">{stat.nama}</td>
+                                        <td class="p-4">
+                                            <span class={`text-[10px] font-black uppercase px-2 py-1 rounded-md tracking-wider ${stat.tipe === 'jasa' ? 'bg-purple-100 text-purple-700' : stat.tipe === 'ulakan' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                {stat.tipe}
+                                            </span>
+                                        </td>
+                                        <td class="p-4 text-center font-bold text-slate-800">{stat.qty_terjual}x</td>
+                                        <td class="p-4 text-right text-slate-500">{formatRp(stat.total_modal)}</td>
+                                        <td class="p-4 text-right font-medium text-slate-700">{formatRp(stat.total_jual)}</td>
+                                        <td class="p-4 text-right font-bold text-emerald-600">{formatRp(stat.total_profit)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <!-- Penjumlahan Total Statistik -->
+                            <tfoot class="bg-slate-50 border-t-2 border-slate-200 font-bold text-sm">
+                                <tr>
+                                    <td colspan="2" class="p-4 text-right text-slate-600 uppercase tracking-wider">Total Keseluruhan:</td>
+                                    <td class="p-4 text-center text-slate-800">{totalStatQty}x</td>
+                                    <td class="p-4 text-right text-slate-500">{formatRp(totalStatModal)}</td>
+                                    <td class="p-4 text-right text-slate-800">{formatRp(totalStatJual)}</td>
+                                    <td class="p-4 text-right text-emerald-600 text-base">{formatRp(totalStatProfit)}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        )}
 
         <!-- Table Transaksi -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -330,13 +343,44 @@ const formatRp = (angka: number) => {
                                                                     </span>
                                                                 </span>
                                                             </div>
-                                                            <div class="flex gap-4 text-xs mb-1">
-                                                                <div class="text-slate-500">
-                                                                    Modal: <span class="font-medium">{formatRp(item.harga_modal_snapshot)}</span>
-                                                                </div>
-                                                                <div class="text-slate-500">
-                                                                    Jual: <span class="font-medium">{formatRp(item.harga_jual_snapshot)}</span>
-                                                                </div>
+                                                            {/* Rincian Harga / Jasa (Menyesuaikan Tipe Item) */}
+                                                            <div class="flex flex-wrap gap-4 text-xs mb-1">
+                                                                {item.tipe_item === 'jasa' ? (
+                                                                    <div class="w-full flex flex-col gap-1.5">
+                                                                        <div class="text-slate-500">
+                                                                            Dikerjakan oleh: 
+                                                                            {item.mekanik_id && item.mekanik_id.length > 0 ? (
+                                                                                item.mekanik_id.map((m: any) => (
+                                                                                    <span class="font-bold text-indigo-600 ml-1 mr-2 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                                                                        <i class="fa-solid fa-wrench"></i> {m.mekanik_id?.nama_mekanik} ({formatRp(m.nominal_komisi_per_orang)})
+                                                                                    </span>
+                                                                                ))
+                                                                            ) : (
+                                                                                <span class="italic text-slate-400 ml-1">-</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div class="flex gap-4">
+                                                                            <div class="text-slate-500">
+                                                                                Total Jasa: <span class="font-medium">{formatRp(item.harga_jual_snapshot * item.qty)}</span>
+                                                                            </div>
+                                                                            <div class="text-slate-500">
+                                                                                Total Upah: <span class="font-medium text-orange-600">{formatRp(item.total_komisi_jasa)}</span>
+                                                                            </div>
+                                                                            <div class="text-slate-500">
+                                                                                Untuk Bengkel: <span class="font-bold text-emerald-600">{formatRp((item.harga_jual_snapshot * item.qty) - (item.total_komisi_jasa || 0))}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        <div class="text-slate-500">
+                                                                            Modal: <span class="font-medium">{formatRp(item.harga_modal_snapshot)}</span>
+                                                                        </div>
+                                                                        <div class="text-slate-500">
+                                                                            Jual: <span class="font-medium">{formatRp(item.harga_jual_snapshot)}</span>
+                                                                        </div>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                             
                                                             <!-- MENAMPILKAN KETERANGAN DI SINI -->

@@ -1,0 +1,195 @@
+---
+// src/pages/cetak-massal.astro
+import { api } from "../lib/api";
+
+const url = new URL(Astro.request.url);
+const token = Astro.cookies.get("directus_token")?.value;
+const config = { headers: { Authorization: `Bearer ${token}` } };
+
+let listTransaksi = [];
+
+try {
+    const statusFilter = url.searchParams.get("status") || "semua";
+    const tanggalMulai = url.searchParams.get("tanggal_mulai") || "";
+    const tanggalSelesai = url.searchParams.get("tanggal_selesai") || "";
+    
+    // Batasi data sementara agar proses pembuatan PDF tidak berat
+    let endpoint = "/items/transaksi?limit=50&fields=*,detail_transaksi.*,detail_transaksi.mekanik_id.*,detail_transaksi.mekanik_id.mekanik_id.nama_mekanik&sort=-tanggal_transaksi";
+    let filterQuery = [];
+    
+    if (statusFilter !== "semua") filterQuery.push(`filter[status_nota][_eq]=${statusFilter}`);
+    if (tanggalMulai && tanggalSelesai) filterQuery.push(`filter[tanggal_transaksi][_between]=${tanggalMulai}T00:00:00,${tanggalSelesai}T23:59:59`);
+    else if (tanggalMulai) filterQuery.push(`filter[tanggal_transaksi][_gte]=${tanggalMulai}T00:00:00`);
+    else if (tanggalSelesai) filterQuery.push(`filter[tanggal_transaksi][_lte]=${tanggalSelesai}T23:59:59`);
+
+    if (filterQuery.length > 0) endpoint += `&${filterQuery.join("&")}`;
+
+    const response = await api.get(endpoint, config);
+    listTransaksi = response.data.data || [];
+} catch (error) {
+    console.error("Gagal mengambil data cetak:", error);
+}
+
+const formatTanggal = (isoString: string) => {
+    if (!isoString) return "-";
+    let cleanString = isoString.replace("Z", "");
+    const date = new Date(`${cleanString}+07:00`);
+    return new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Jakarta",
+        day: "numeric", month: "long", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+    }).format(date).replace("pukul", "pukul"); 
+};
+
+const formatRp = (angka: number) => {
+    return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(angka || 0));
+};
+---
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unduh PDF Transaksi</title>
+    
+    <!-- is:inline SANGAT PENTING agar Astro tidak memblokir Tailwind dan CSS kembali cantik -->
+    <script src="https://cdn.tailwindcss.com" is:inline></script>
+    <!-- Library untuk bypass Print Browser dan langsung download PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" is:inline></script>
+</head>
+<body class="bg-slate-100 p-4 md:p-8 font-sans">
+
+    <!-- Tombol Download -->
+    <div class="max-w-4xl mx-auto mb-8 flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div>
+            <h1 class="font-black text-xl text-slate-800">Cetak Massal Laporan</h1>
+            <p class="text-slate-500 text-sm">Menampilkan {listTransaksi.length} data transaksi</p>
+        </div>
+        <button onclick="downloadPDF()" id="btn-download" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-bold shadow-lg transition flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+            Download PDF
+        </button>
+    </div>
+
+<!-- AREA YANG AKAN DIJADIKAN PDF (VERSI KOMPAK) -->
+    <div id="area-pdf" class="max-w-4xl mx-auto space-y-4">
+    {listTransaksi.map((trx: any) => (
+        <div class="trx-card bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                
+                <!-- HEADER GELAP -->
+                <div class="bg-[#0f172a] text-white p-3 flex justify-between items-end">
+                    <div>
+                        <span class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider mb-1.5 inline-block">Laporan Internal</span>
+                        <h2 class="text-lg font-black text-white leading-none">Transaksi #{trx.id}</h2>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-slate-400 text-[8px] uppercase tracking-widest mb-0.5">Waktu Transaksi</div>
+                        <div class="text-xs font-bold text-slate-200">{formatTanggal(trx.tanggal_transaksi)}</div>
+                    </div>
+                </div>
+
+                <div class="p-3">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-slate-400 text-[9px] uppercase tracking-wider border-b border-slate-100">
+                                <th class="pb-1.5 font-bold w-1/3">Item / Pekerjaan</th>
+                                <th class="pb-1.5 font-bold text-center">Qty</th>
+                                <th class="pb-1.5 font-bold text-right">Tagihan Konsumen</th>
+                                <th class="pb-1.5 font-bold text-right w-1/3">Rincian Profit / Komisi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 text-[10px]">
+                            {trx.detail_transaksi?.map((item: any) => (
+                                <tr class="align-top">
+                                    <td class="py-2 pr-2">
+                                        <div class="font-bold text-slate-800 mb-0.5">{item.nama_item}</div>
+                                        <span class={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider ${item.tipe_item === 'jasa' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            {item.tipe_item || '-'}
+                                        </span>
+                                        {item.tipe_item === 'jasa' && item.mekanik_id && item.mekanik_id.length > 0 && (
+                                            <span class="text-[9px] text-slate-500 ml-1 font-medium">
+                                                🔧 {item.mekanik_id.map((m: any) => m.mekanik_id?.nama_mekanik).join(', ')}
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td class="py-2 text-center font-bold text-slate-700">{item.qty}</td>
+                                    <td class="py-2 text-right">
+                                        <div class="font-bold text-slate-800">{formatRp(item.harga_jual_snapshot * item.qty)}</div>
+                                        <div class="text-[9px] text-slate-400">@ {formatRp(item.harga_jual_snapshot)}</div>
+                                    </td>
+                                    <td class="py-2 pl-4 text-[9px] text-slate-500">
+                                        {item.tipe_item === 'jasa' ? (
+                                            <div class="space-y-0.5">
+                                                <div class="flex justify-between"><span>Tarif Jasa:</span> <span>{formatRp(item.harga_jual_snapshot * item.qty)}</span></div>
+                                                <div class="flex justify-between text-orange-600"><span>Gaji (60%):</span> <span>- {formatRp(item.total_komisi_jasa)}</span></div>
+                                                <div class="mt-1 pt-1 flex justify-between font-bold text-slate-800 border-t border-slate-50">
+                                                    <span>Laba Bersih:</span> 
+                                                    <span class="text-emerald-600">{formatRp((item.harga_jual_snapshot * item.qty) - (item.total_komisi_jasa || 0))}</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div class="space-y-0.5">
+                                                <div class="flex justify-between"><span>Modal Satuan:</span> <span>{formatRp(item.harga_modal_snapshot)}</span></div>
+                                                <div class="flex justify-between"><span>Total Modal ({item.qty}x):</span> <span>{formatRp(item.harga_modal_snapshot * item.qty)}</span></div>
+                                                <div class="flex justify-between"><span>Laba per Satuan:</span> <span>{formatRp(item.harga_jual_snapshot - item.harga_modal_snapshot)}</span></div>
+                                                <div class="mt-1 pt-1 flex justify-between font-bold text-slate-800 border-t border-slate-50">
+                                                    <span>Total Laba:</span> 
+                                                    <span class="text-emerald-600">{formatRp((item.harga_jual_snapshot - item.harga_modal_snapshot) * item.qty)}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- FOOTER TOTAL (Kotak Hijau) -->
+                <div class="bg-white px-3 pb-3 flex justify-end">
+                    <div class="w-full max-w-sm space-y-2">
+                        <div class="flex justify-between items-center text-slate-500 font-medium px-2 text-xs">
+                            <span>Pendapatan Kotor:</span>
+                            <span class="text-sm font-black text-slate-800">{formatRp(trx.total_harga)}</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-[#ecfdf5] border border-[#a7f3d0] px-3 py-1.5 rounded-lg">
+                            <span class="font-bold text-emerald-700 uppercase tracking-wide text-[10px]">Pendapatan Bersih:</span>
+                            <span class="text-sm font-black text-emerald-700">{formatRp(trx.total_profit)}</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        ))}
+    </div>
+
+    <!-- SCRIPT DOWNLOAD PDF -->
+    <script is:inline>
+        function downloadPDF() {
+            const btn = document.getElementById('btn-download');
+            btn.innerHTML = "Memproses PDF...";
+            btn.disabled = true;
+
+            const element = document.getElementById('area-pdf');
+            const opt = {
+                margin:       [0.5, 0, 0.5, 0], 
+                filename:     'Rekap_Laporan_Internal.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true }, 
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: 'css', avoid: '.trx-card' }
+            };
+
+            // Proses download menggunakan library
+            html2pdf().set(opt).from(element).save().then(() => {
+                btn.innerHTML = "Download Selesai!";
+                setTimeout(() => {
+                    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg> Download PDF`;
+                    btn.disabled = false;
+                }, 3000);
+            });
+        }
+    </script>
+</body>
+</html>
