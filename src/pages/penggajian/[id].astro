@@ -161,13 +161,36 @@ const rincianDeskripsi = `Total Komisi: ${formatRp(totalKomisi)} | Uang Makan: $
                         <h3 class="text-sm font-bold text-emerald-600 uppercase tracking-wider border-b border-slate-100 pb-2 mb-3">
                             <i class="fa-solid fa-plus-circle mr-1"></i> Pendapatan
                         </h3>
-                        <div class="space-y-4 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-slate-600">Total Komisi Pekerjaan ({listKomisi.length} Servis)</span>
-                                <span class="font-bold text-slate-800">{formatRp(totalKomisi)}</span>
+<div class="space-y-4 text-sm">
+                            {/* Rincian Komisi */}
+                            <div class="mb-2">
+                                <div class="flex justify-between items-end border-b border-slate-100 pb-2 mb-3">
+                                    <span class="text-slate-600 font-bold">Komisi Pekerjaan ({listKomisi.length} Servis)</span>
+                                    <span class="font-bold text-slate-800">{formatRp(totalKomisi)}</span>
+                                </div>
+                                
+                                {listKomisi.length === 0 ? (
+                                    <p class="text-slate-400 italic text-xs">Tidak ada komisi di periode ini.</p>
+                                ) : (
+                                    <div class="space-y-3 pl-3 border-l-2 border-emerald-100">
+                                        {listKomisi
+                                            .sort((a, b) => new Date(a.detail_transaksi_id?.transaksi_id?.tanggal_transaksi) - new Date(b.detail_transaksi_id?.transaksi_id?.tanggal_transaksi))
+                                            .map((k) => (
+                                            <div class="flex justify-between items-start">
+                                                <div>
+                                                    <div class="text-slate-700 font-medium text-xs">{k.detail_transaksi_id?.nama_item || 'Jasa Servis'}</div>
+                                                    <div class="text-slate-400 text-[11px] mt-0.5">{formatTgl(k.detail_transaksi_id?.transaksi_id?.tanggal_transaksi)}</div>
+                                                </div>
+                                                <span class="font-semibold text-slate-600 text-xs text-right">{formatRp(k.nominal_komisi_per_orang)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                            <div class="flex justify-between">
-                                <span class="text-slate-600">Uang Makan ({listAbsensi.length} Hari Hadir)</span>
+
+                            {/* Total Uang Makan */}
+                            <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+                                <span class="text-slate-600 font-bold">Total Uang Makan ({listAbsensi.length} Hari)</span>
                                 <span class="font-bold text-slate-800">{formatRp(totalUangMakan)}</span>
                             </div>
                         </div>
