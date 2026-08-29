@@ -26,7 +26,7 @@ let restok = [];
 try {
     // 1. Siapkan format filter tanggal yang aman untuk masing-masing tabel
     // Directus menggunakan format: [_between]=2023-01-01,2023-01-31
-    const filterPengeluaran = start && end ? `?filter[tanggal_pengeluaran][_between]=${start},${end}` : "?limit=-1";
+    const filterPengeluaran = start && end ? `?limit=-1&filter[tanggal_pengeluaran][_between]=${start},${end}` : "?limit=-1";
     const filterGaji = start && end ? `&filter[periode_mulai][_between]=${start},${end}` : "";
     const filterKasbon = start && end ? `&filter[tanggal][_between]=${start},${end}` : "";
     const filterRestok = start && end ? `&filter[tanggal_pembelian][_between]=${start},${end}` : "";
@@ -37,7 +37,7 @@ try {
     let dataPengeluaran = resPengeluaran.data.data || [];
 
     // 3. Fetch Data Operasional (Untuk Biaya Tetap Harian)
-    const resOperasional = await getWithAuth(`/items/operasional_harian?filter[status_buka][_eq]=buka${filterOperasional}`, token);
+    const resOperasional = await getWithAuth(`/items/operasional_harian?limit=-1&filter[status_buka][_eq]=buka${filterOperasional}`, token);
     let dataOperasional = resOperasional.data.data || [];
 
     // 4. Mapping Biaya Tetap Harian persis seperti di UI (index.astro)
@@ -56,13 +56,13 @@ try {
     pengeluaran.sort((a, b) => new Date(b.tanggal_pengeluaran) - new Date(a.tanggal_pengeluaran));
 
     // 6. Fetch Data Lainnya (Gaji, Kasbon, Restok)
-    const resGaji = await getWithAuth(`/items/riwayat_penggajian?fields=*,mekanik_id.nama_mekanik${filterGaji}`, token);
+    const resGaji = await getWithAuth(`/items/riwayat_penggajian?limit=-1&fields=*,mekanik_id.nama_mekanik${filterGaji}`, token);
     gaji = resGaji.data.data || [];
 
-    const resKasbon = await getWithAuth(`/items/kasbon_mekanik?fields=*,mekanik_id.nama_mekanik${filterKasbon}`, token);
+    const resKasbon = await getWithAuth(`/items/kasbon_mekanik?limit=-1&fields=*,mekanik_id.nama_mekanik${filterKasbon}`, token);
     kasbon = resKasbon.data.data || [];
 
-    const resRestok = await getWithAuth(`/items/pembelian_stok?fields=*,detail_pembelian_stok.*,detail_pembelian_stok.produk_id.nama_produk${filterRestok}`, token);
+    const resRestok = await getWithAuth(`/items/pembelian_stok?limit=-1&fields=*,detail_pembelian_stok.*,detail_pembelian_stok.produk_id.nama_produk${filterRestok}`, token);
     restok = resRestok.data.data || [];
 
 } catch (e) {

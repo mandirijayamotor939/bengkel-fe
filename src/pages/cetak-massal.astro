@@ -14,7 +14,7 @@ try {
     const tanggalSelesai = url.searchParams.get("tanggal_selesai") || "";
     
     // Batasi data sementara agar proses pembuatan PDF tidak berat
-    let endpoint = "/items/transaksi?limit=50&fields=*,detail_transaksi.*,detail_transaksi.mekanik_id.*,detail_transaksi.mekanik_id.mekanik_id.nama_mekanik&sort=-tanggal_transaksi";
+    let endpoint = "/items/transaksi?limit=-1&fields=*,detail_transaksi.*,detail_transaksi.mekanik_id.*,detail_transaksi.mekanik_id.mekanik_id.nama_mekanik&sort=-tanggal_transaksi";
     let filterQuery = [];
     
     if (statusFilter !== "semua") filterQuery.push(`filter[status_nota][_eq]=${statusFilter}`);

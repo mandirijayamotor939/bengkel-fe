@@ -31,7 +31,7 @@ const todayStr = `${year}-${month}-${day}`;
 let jumlahGantung = 0;
 try {
     const resGantung = await api.get(
-        "/items/transaksi?filter[status_nota][_eq]=proses&meta=filter_count",
+        "/items/transaksi?limit=-1&filter[status_nota][_eq]=proses&meta=filter_count",
     );
     jumlahGantung =
         resGantung.data.meta?.filter_count || resGantung.data.data?.length || 0;
@@ -59,7 +59,7 @@ if (Astro.request.method === "POST") {
             // Jika pilih BUKA, cari sisa uang laci dari hari terakhir buka
             if (status_buka === "buka") {
                 const resLast = await api.get(
-                    `/items/operasional_harian?filter[tanggal][_lt]=${todayStr}&filter[status_buka][_eq]=buka&sort=-tanggal&limit=1`,
+                    `/items/operasional_harian?&filter[tanggal][_lt]=${todayStr}&filter[status_buka][_eq]=buka&sort=-tanggal&limit=1`,
                 );
                 const lastOp = resLast.data.data?.[0];
 
@@ -71,7 +71,7 @@ if (Astro.request.method === "POST") {
                     // 1. Tarik Omzet Cash hari tersebut
                     let lastOmzetCash = 0;
                     const resTrx = await api.get(
-                        `/items/transaksi?filter[tanggal_transaksi][_between]=[${lastDate}T00:00:00,${lastDate}T23:59:59]&filter[status_nota][_eq]=lunas&filter[metode_pembayaran][_eq]=cash`,
+                        `/items/transaksi?limit=-1&filter[tanggal_transaksi][_between]=[${lastDate}T00:00:00,${lastDate}T23:59:59]&filter[status_nota][_eq]=lunas&filter[metode_pembayaran][_eq]=cash`,
                     );
                     for (const trx of resTrx.data.data || []) {
                         lastOmzetCash += Number(trx.total_harga || 0);
@@ -80,7 +80,7 @@ if (Astro.request.method === "POST") {
                     // 2. Tarik Pengeluaran Cash hari tersebut
                     let lastKeluarCash = 0;
                     const resOut = await api.get(
-                        `/items/pengeluaran?filter[tanggal_pengeluaran][_eq]=${lastDate}&filter[sumber_dana][_neq]=transfer_bank`,
+                        `/items/pengeluaran?limit=-1&filter[tanggal_pengeluaran][_eq]=${lastDate}&filter[sumber_dana][_neq]=transfer_bank`,
                     );
                     for (const out of resOut.data.data || []) {
                         lastKeluarCash += Number(out.nominal || 0);
@@ -166,7 +166,7 @@ try {
 
     // B. TARIK DATA KAS & BIAYA TETAP SESUAI RENTANG TANGGAL (FILTER)
     const resOperasionalRange = await api.get(
-        `/items/operasional_harian?filter[tanggal][_between]=[${startDate},${endDate}]`,
+        `/items/operasional_harian?limit=-1&filter[tanggal][_between]=[${startDate},${endDate}]`,
     );
     const dataOperasional = resOperasionalRange.data.data || [];
 
@@ -192,7 +192,7 @@ try {
 
     // C. AMBIL TRANSAKSI INDUK (Untuk Omzet)
     const resTrx = await api.get(
-        `/items/transaksi?filter[tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&sort=-tanggal_transaksi`,
+        `/items/transaksi?limit=-1&filter[tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&sort=-tanggal_transaksi`,
     );
     const semuaTrx = resTrx.data.data || [];
     transaksiTerbaru = semuaTrx.slice(0, 5);
@@ -211,7 +211,7 @@ try {
 
     // D. BREAKDOWN PROFIT DARI DETAIL TRANSAKSI
     const resDetailLunas = await api.get(
-        `/items/detail_transaksi?filter[transaksi_id][tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&filter[transaksi_id][status_nota][_eq]=lunas&fields=tipe_item,qty,harga_modal_snapshot,harga_jual_snapshot,total_komisi_jasa`,
+        `/items/detail_transaksi?limit=-1&filter[transaksi_id][tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&filter[transaksi_id][status_nota][_eq]=lunas&fields=tipe_item,qty,harga_modal_snapshot,harga_jual_snapshot,total_komisi_jasa`,
     );
     const detailLunas = resDetailLunas.data.data || [];
 
@@ -237,7 +237,7 @@ try {
     // E. HITUNG MODAL GANTUNG (ULAKAN) DENGAN CEK SUMBER DANA
     // Menarik fields pengeluaran_id.sumber_dana sesuai relasi di database
     const resUlakan = await api.get(
-        `/items/detail_transaksi?filter[transaksi_id][tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&filter[transaksi_id][status_nota][_eq]=proses&filter[tipe_item][_eq]=ulakan&fields=harga_modal_snapshot,qty,pengeluaran_id.sumber_dana`,
+        `/items/detail_transaksi?limit=-1&filter[transaksi_id][tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&filter[transaksi_id][status_nota][_eq]=proses&filter[tipe_item][_eq]=ulakan&fields=harga_modal_snapshot,qty,pengeluaran_id.sumber_dana`,
     );
     const dataUlakan = resUlakan.data.data || [];
     for (const d of dataUlakan) {
@@ -263,7 +263,7 @@ try {
 
     try {
         const resPengeluaran = await api.get(
-            `/items/pengeluaran?filter[tanggal_pengeluaran][_gte]=${startDate}&filter[tanggal_pengeluaran][_lte]=${endDate}`,
+            `/items/pengeluaran?limit=-1&filter[tanggal_pengeluaran][_gte]=${startDate}&filter[tanggal_pengeluaran][_lte]=${endDate}`,
         );
 
         const dataPengeluaran = resPengeluaran.data.data || [];
@@ -293,7 +293,7 @@ try {
     }
     // G. KALKULASI 10 PRODUK TERLARIS
     const resTopItems = await api.get(
-        `/items/detail_transaksi?filter[transaksi_id][tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&filter[transaksi_id][status_nota][_eq]=lunas&filter[tipe_item][_eq]=sparepart&fields=qty,produk_id.nama_produk`,
+        `/items/detail_transaksi?limit=-1&filter[transaksi_id][tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&filter[transaksi_id][status_nota][_eq]=lunas&filter[tipe_item][_eq]=sparepart&fields=qty,produk_id.nama_produk`,
     );
     const dataProdukTerjual = resTopItems.data.data || [];
 

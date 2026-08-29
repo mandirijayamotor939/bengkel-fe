@@ -18,7 +18,7 @@ const config = { headers: { Authorization: `Bearer ${token}` } };
 
 try {
 // 2. Susun endpoint (Tambahkan relasi ke mekanik_id untuk menarik nama dan komisi per orang)
-    let endpoint = "/items/transaksi?fields=*,detail_transaksi.*,detail_transaksi.mekanik_id.*,detail_transaksi.mekanik_id.mekanik_id.nama_mekanik&sort=-tanggal_transaksi";
+    let endpoint = "/items/transaksi?limit=-1&fields=*,detail_transaksi.*,detail_transaksi.mekanik_id.*,detail_transaksi.mekanik_id.mekanik_id.nama_mekanik&sort=-tanggal_transaksi";
     let filterQuery = [];
     
     // Filter by Status
@@ -47,9 +47,14 @@ try {
     let detailItems = trx.detail_transaksi || [];
     
     // Saring detail berdasarkan Kategori Filter (sparepart, jasa, ulakan)
-    if (kategoriFilter !== "semua") {
-        detailItems = detailItems.filter((item: any) => item.tipe_item === kategoriFilter);
-    }
+if (kategoriFilter !== "semua") {
+    detailItems = detailItems.filter((item: any) => {
+        if (kategoriFilter === "sparepart") {
+            return item.tipe_item === "sparepart" || item.tipe_item === "ulakan";
+        }
+        return item.tipe_item === kategoriFilter;
+    });
+}
 
     // Hitung ulang total tagihan dan profit nota induk secara dinamis dari detail tersisa
     let calculatedTotalHarga = 0;

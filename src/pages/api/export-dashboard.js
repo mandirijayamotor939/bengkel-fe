@@ -47,7 +47,7 @@ export async function GET({ request, cookies }) {
 
     try {
         // 1. Tarik Data Operasional (Saldo Awal & Setoran)
-        const resOperasionalRange = await api.get(`/items/operasional_harian?filter[tanggal][_between]=[${startDate},${endDate}]`, authConfig);
+        const resOperasionalRange = await api.get(`/items/operasional_harian?limit=-1&filter[tanggal][_between]=[${startDate},${endDate}]`, authConfig);
         const dataOperasional = resOperasionalRange.data.data || [];
 
         const operasionalAwal = dataOperasional.find(d => d.tanggal === startDate);
@@ -61,7 +61,7 @@ export async function GET({ request, cookies }) {
         }
 
         // 2. Tarik Data Transaksi (Omzet)
-        const resTrx = await api.get(`/items/transaksi?filter[tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&filter[status_nota][_eq]=lunas`, authConfig);
+        const resTrx = await api.get(`/items/transaksi?limit=-1&filter[tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&filter[status_nota][_eq]=lunas`, authConfig);
         const semuaTrx = resTrx.data.data || [];
 
         for (const trx of semuaTrx) {
@@ -71,7 +71,7 @@ export async function GET({ request, cookies }) {
 
         // 3. Tarik Detail Transaksi Lunas (Profit Produk & Jasa)
         // PERBAIKAN: Tambahkan 'id' ke dalam parameter fields
-        const resDetailLunas = await api.get(`/items/detail_transaksi?filter[transaksi_id][tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&filter[transaksi_id][status_nota][_eq]=lunas&fields=id,tipe_item,qty,harga_modal_snapshot,harga_jual_snapshot,total_komisi_jasa`, authConfig);
+        const resDetailLunas = await api.get(`/items/detail_transaksi?limit=-1&filter[transaksi_id][tanggal_transaksi][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]&filter[transaksi_id][status_nota][_eq]=lunas&fields=id,tipe_item,qty,harga_modal_snapshot,harga_jual_snapshot,total_komisi_jasa`, authConfig);
         const detailLunas = resDetailLunas.data.data || [];
 
         // Buat wadah untuk menampung ID detail_transaksi khusus Jasa
@@ -103,7 +103,7 @@ export async function GET({ request, cookies }) {
             if (validDetailJasaIds.length > 0) {
                 const idsString = validDetailJasaIds.join(",");
                 // PERBAIKAN: Gunakan filter [_in] berdasarkan ID yang sudah terbukti valid
-                const resKomisi = await api.get(`/items/detail_transaksi_mekanik?filter[detail_transaksi_id][_in]=${idsString}&fields=mekanik_id.nama_mekanik,nominal_komisi_per_orang`, authConfig);
+                const resKomisi = await api.get(`/items/detail_transaksi_mekanik?limit=-1&filter[detail_transaksi_id][_in]=${idsString}&fields=mekanik_id.nama_mekanik,nominal_komisi_per_orang`, authConfig);
                 const dataKomisi = resKomisi.data.data || [];
 
                 for (const k of dataKomisi) {
@@ -116,7 +116,7 @@ export async function GET({ request, cookies }) {
             console.warn("Gagal menarik rincian komisi:", e.message);
         }
         // 4. Tarik Data Pengeluaran Umum (Gaji, Restok, Operasional)
-        const resPengeluaran = await api.get(`/items/pengeluaran?filter[tanggal_pengeluaran][_gte]=${startDate}&filter[tanggal_pengeluaran][_lte]=${endDate}`, authConfig);
+        const resPengeluaran = await api.get(`/items/pengeluaran?limit=-1&filter[tanggal_pengeluaran][_gte]=${startDate}&filter[tanggal_pengeluaran][_lte]=${endDate}`, authConfig);
         const dataPengeluaran = resPengeluaran.data.data || [];
 
         for (const out of dataPengeluaran) {
@@ -160,7 +160,7 @@ export async function GET({ request, cookies }) {
         // 5. Tarik Data Absensi
         let uniqueMekanikHadir = [];
         try {
-            const resAbsensi = await api.get(`/items/absensi_mekanik?filter[tanggal][_gte]=${startDate}&filter[tanggal][_lte]=${endDate}&filter[status][_eq]=hadir&fields=mekanik_id.nama_mekanik`, authConfig);
+            const resAbsensi = await api.get(`/items/absensi_mekanik?limit=-1&filter[tanggal][_gte]=${startDate}&filter[tanggal][_lte]=${endDate}&filter[status][_eq]=hadir&fields=mekanik_id.nama_mekanik`, authConfig);
             uniqueMekanikHadir = [...new Set((resAbsensi.data.data || []).map(a => a.mekanik_id?.nama_mekanik).filter(Boolean))];
         } catch (e) {
             console.warn("Tabel absensi error:", e.message);

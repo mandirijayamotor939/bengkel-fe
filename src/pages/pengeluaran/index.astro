@@ -10,14 +10,14 @@ let isError = false;
 try {
     // 1. Fetch data pengeluaran murni
     const resPengeluaran = await getWithAuth(
-        "/items/pengeluaran?sort=-tanggal_pengeluaran,-id",
+        "/items/pengeluaran?limit=-1&sort=-tanggal_pengeluaran,-id",
         token,
     );
     let dataPengeluaran = resPengeluaran.data.data || [];
 
     // 2. Fetch data operasional_harian khusus yang bengkelnya buka
     const resOperasional = await getWithAuth(
-        "/items/operasional_harian?filter[status_buka][_eq]=buka",
+        "/items/operasional_harian?limit=-1&filter[status_buka][_eq]=buka",
         token,
     );
     let dataOperasional = resOperasional.data.data || [];
