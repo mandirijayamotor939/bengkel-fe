@@ -42,59 +42,77 @@ try {
     const response = await api.get(endpoint, config);
     let rawData = response.data.data || [];
 
-// 3. Filter by Kategori Item menggunakan JavaScript (Filter isi detail nota)
+// 3. Filter & Hitung Ulang Total Nota secara Dinamis dari detail_transaksi
+    listTransaksi = rawData.map((trx: any) => {
+    let detailItems = trx.detail_transaksi || [];
+    
+    // Saring detail berdasarkan Kategori Filter (sparepart, jasa, ulakan)
     if (kategoriFilter !== "semua") {
-        listTransaksi = rawData.reduce((acc: any[], trx: any) => {
-            if (!trx.detail_transaksi) return acc;
-            
-            // Saring HANYA item yang tipenya sesuai dengan filter
-            const filteredDetails = trx.detail_transaksi.filter(
-                (item: any) => item.tipe_item === kategoriFilter
-            );
-
-            // Jika setelah disaring itemnya masih ada, masukkan ke list tampilan
-            if (filteredDetails.length > 0) {
-                acc.push({
-                    ...trx, // Salin seluruh data nota (termasuk total harga asli)
-                    detail_transaksi: filteredDetails // Timpa detailnya dengan yang sudah disaring
-                });
-            }
-            
-            return acc;
-        }, []);
-    } else {
-        listTransaksi = rawData;
+        detailItems = detailItems.filter((item: any) => item.tipe_item === kategoriFilter);
     }
 
-    // 4. Olah data untuk Statistik (Tabel)
-    listTransaksi.forEach((trx: any) => {
-        if (trx.detail_transaksi && Array.isArray(trx.detail_transaksi)) {
-            trx.detail_transaksi.forEach((item: any) => {
-                const nama = item.nama_item || "Item Tidak Diketahui";
-                
-                if (!statistikItem[nama]) {
-                    statistikItem[nama] = {
-                        nama: nama,
-                        tipe: item.tipe_item || "-",
-                        qty_terjual: 0,
-                        total_modal: 0,
-                        total_jual: 0,
-                        total_profit: 0
-                    };
-                }
+    // Hitung ulang total tagihan dan profit nota induk secara dinamis dari detail tersisa
+    let calculatedTotalHarga = 0;
+    let calculatedTotalProfit = 0;
 
-                const qty = item.qty || 1;
-                const modal = (item.harga_modal_snapshot || 0) * qty;
-                const jual = (item.harga_jual_snapshot || 0) * qty;
-                const profit = jual - modal;
+    detailItems.forEach((item: any) => {
+        const qty = Number(item.qty || 1);
+        const modal = Number(item.harga_modal_snapshot || 0) * qty;
+        const jual = Number(item.harga_jual_snapshot || 0) * qty;
+        
+        calculatedTotalHarga += jual;
 
-                statistikItem[nama].qty_terjual += qty;
-                statistikItem[nama].total_modal += modal;
-                statistikItem[nama].total_jual += jual;
-                statistikItem[nama].total_profit += profit;
-            });
+        if (item.tipe_item === 'jasa') {
+            const komisi = Number(item.total_komisi_jasa || 0);
+            calculatedTotalProfit += (jual - komisi);
+        } else {
+            calculatedTotalProfit += (jual - modal);
         }
     });
+
+    return {
+        ...trx,
+        detail_transaksi: detailItems,
+        // Timpa data statis dengan hasil kalkulasi dinamis
+        total_harga: calculatedTotalHarga,
+        total_profit: calculatedTotalProfit
+    };
+}).filter((trx: any) => trx.detail_transaksi.length > 0);
+
+// 4. Olah Data Statistik (Hanya memproses nota berstatus 'lunas' agar seragam dengan Dashboard)
+    listTransaksi.forEach((trx: any) => {
+    // Lewati jika nota masih berstatus 'proses' (gantung)
+    if (trx.status_nota !== "lunas") return;
+
+    (trx.detail_transaksi || []).forEach((item: any) => {
+        const nama = item.nama_item || "Item Tidak Diketahui";
+        
+        if (!statistikItem[nama]) {
+            statistikItem[nama] = {
+                nama: nama,
+                tipe: item.tipe_item || "-",
+                qty_terjual: 0,
+                total_modal: 0,
+                total_jual: 0,
+                total_profit: 0
+            };
+        }
+
+        const qty = Number(item.qty || 1);
+        const modal = Number(item.harga_modal_snapshot || 0) * qty;
+        const jual = Number(item.harga_jual_snapshot || 0) * qty;
+        let profit = jual - modal;
+
+        if (item.tipe_item === 'jasa') {
+            profit = jual - Number(item.total_komisi_jasa || 0);
+        }
+
+        statistikItem[nama].qty_terjual += qty;
+        statistikItem[nama].total_modal += modal;
+        statistikItem[nama].total_jual += jual;
+        statistikItem[nama].total_profit += profit;
+    });
+});
 
 } catch (error) {
     console.error("Gagal mengambil riwayat transaksi:", error);

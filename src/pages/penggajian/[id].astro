@@ -26,47 +26,54 @@ try {
 
     // 2. Cek Riwayat Penggajian (Deteksi Overlap Tanggal)
     const resRiwayat = await getWithAuth(
-        `/items/riwayat_penggajian?filter[mekanik_id][_eq]=${id}&filter[periode_mulai][_lte]=${end}&filter[periode_selesai][_gte]=${start}`, 
-        token
+        `/items/riwayat_penggajian?filter[mekanik_id][_eq]=${id}&filter[periode_mulai][_lte]=${end}&filter[periode_selesai][_gte]=${start}`,
+        token,
     );
     sudahDibayar = resRiwayat.data.data && resRiwayat.data.data.length > 0;
 
     // 3. Tarik Data Komisi Jasa
     const resKomisi = await getWithAuth(
-        `/items/detail_transaksi_mekanik?filter[mekanik_id][_eq]=${id}&fields=*,detail_transaksi_id.nama_item,detail_transaksi_id.transaksi_id.id,detail_transaksi_id.transaksi_id.tanggal_transaksi`, 
-        token
+        `/items/detail_transaksi_mekanik?filter[mekanik_id][_eq]=${id}&fields=*,detail_transaksi_id.nama_item,detail_transaksi_id.transaksi_id.id,detail_transaksi_id.transaksi_id.tanggal_transaksi`,
+        token,
     );
     const allKomisi = resKomisi.data.data || [];
     listKomisi = allKomisi.filter((k) => {
-        if (!k.detail_transaksi_id?.transaksi_id?.tanggal_transaksi) return false;
-        const tglTrx = k.detail_transaksi_id.transaksi_id.tanggal_transaksi.split("T")[0];
+        if (!k.detail_transaksi_id?.transaksi_id?.tanggal_transaksi)
+            return false;
+
+        // Ambil waktu mentah UTC, tambahkan offset +7 jam (25200000 ms) untuk WIB
+        const rawDate = new Date(
+            k.detail_transaksi_id.transaksi_id.tanggal_transaksi,
+        );
+        const wibDate = new Date(rawDate.getTime() + 7 * 60 * 60 * 1000);
+        const tglTrx = wibDate.toISOString().split("T")[0];
+
         return tglTrx >= start && tglTrx <= end;
     });
 
     // 4. Tarik Data Uang Makan
     const resAbsensi = await getWithAuth(
-        `/items/absensi_mekanik?filter[mekanik_id][_eq]=${id}&filter[status][_eq]=hadir&filter[tanggal][_gte]=${start}&filter[tanggal][_lte]=${end}`, 
-        token
+        `/items/absensi_mekanik?filter[mekanik_id][_eq]=${id}&filter[status][_eq]=hadir&filter[tanggal][_gte]=${start}&filter[tanggal][_lte]=${end}`,
+        token,
     );
     listAbsensi = resAbsensi.data.data || [];
 
-// 5. Tarik Data Kasbon
+    // 5. Tarik Data Kasbon
     if (!sudahDibayar) {
         // [KONDISI 1]: Jika BELUM dibayar, tarik semua kasbon yang belum dilunasi
         const resKasbon = await getWithAuth(
-            `/items/kasbon_mekanik?filter[mekanik_id][_eq]=${id}&filter[status_potong][_eq]=belum_lunas`, 
-            token
+            `/items/kasbon_mekanik?filter[mekanik_id][_eq]=${id}&filter[status_potong][_eq]=belum_lunas`,
+            token,
         );
         listKasbon = resKasbon.data.data || [];
     } else {
         // [KONDISI 2]: Jika SUDAH dibayar, tarik histori kasbon khusus pada rentang tanggal yang dipilih saja
         const resKasbon = await getWithAuth(
-            `/items/kasbon_mekanik?filter[mekanik_id][_eq]=${id}&filter[tanggal][_gte]=${start}&filter[tanggal][_lte]=${end}`, 
-            token
+            `/items/kasbon_mekanik?filter[mekanik_id][_eq]=${id}&filter[tanggal][_gte]=${start}&filter[tanggal][_lte]=${end}`,
+            token,
         );
         listKasbon = resKasbon.data.data || [];
     }
-
 } catch (error) {
     console.error("Gagal menarik data gaji:", error.message);
     errorMsg = error.message;
@@ -77,199 +84,307 @@ if (!mekanik && !errorMsg) {
 }
 
 // --- KALKULASI TAKE HOME PAY (THP) ---
-const totalKomisi = listKomisi.reduce((sum, item) => sum + (item.nominal_komisi_per_orang || 0), 0);
-const totalUangMakan = listAbsensi.reduce((sum, item) => sum + (item.uang_makan || 0), 0);
-const totalPotongan = listKasbon.reduce((sum, item) => sum + (item.nominal || 0), 0);
-const thp = (totalKomisi + totalUangMakan) - totalPotongan;
+const totalKomisi = listKomisi.reduce(
+    (sum, item) => sum + (item.nominal_komisi_per_orang || 0),
+    0,
+);
+const totalUangMakan = listAbsensi.reduce(
+    (sum, item) => sum + (item.uang_makan || 0),
+    0,
+);
+const totalPotongan = listKasbon.reduce(
+    (sum, item) => sum + (item.nominal || 0),
+    0,
+);
+const thp = totalKomisi + totalUangMakan - totalPotongan;
 
-const idKasbonPending = listKasbon.map(k => k.id);
-const formatRp = (angka) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(angka || 0);
-const formatTgl = (tgl) => new Intl.DateTimeFormat("id-ID", { 
-    timeZone: "Asia/Jakarta", 
-    day: "2-digit", 
-    month: "long", 
-    year: "numeric" 
-}).format(new Date(tgl));
+const idKasbonPending = listKasbon.map((k) => k.id);
+const formatRp = (angka) =>
+    new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+    }).format(angka || 0);
+const formatTgl = (tgl) =>
+    new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Jakarta",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+    }).format(new Date(tgl));
 
 const rincianDeskripsi = `Total Komisi: ${formatRp(totalKomisi)} | Uang Makan: ${formatRp(totalUangMakan)} | Potongan Kasbon: ${formatRp(totalPotongan)} | THP: ${formatRp(thp)}`;
 ---
 
-<Layout title={`Slip Gaji - ${mekanik?.nama_mekanik || 'Loading...'}`}>
+<Layout title={`Slip Gaji - ${mekanik?.nama_mekanik || "Loading..."}`}>
     <div class="max-w-4xl mx-auto px-4 py-8">
-        
         {/* Tombol Navigasi */}
         <div class="mb-6 flex justify-between items-center">
-            <a href="/penggajian" class="text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-2 text-sm transition">
+            <a
+                href="/penggajian"
+                class="text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-2 text-sm transition"
+            >
                 <i class="fa-solid fa-arrow-left"></i> Kembali
             </a>
-            
-            {sudahDibayar ? (
-                <div class="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-sm font-bold border border-emerald-200 inline-flex items-center gap-2">
-                    <i class="fa-solid fa-check-circle"></i> Gaji Periode Ini Sudah Dibayar
-                </div>
-            ) : (
-                <div class="flex items-center gap-3">
-                    <select id="sumberDanaSelect" class="bg-white border border-slate-300 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 outline-none">
-                        <option value="laci_kasir">Uang Laci Kasir</option>
-                        <option value="transfer_bank">Transfer Bank</option>
-                    </select>
 
-                    <button 
-                        onclick="prosesPembayaranGaji()"
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-sm transition inline-flex items-center gap-2"
-                        data-id-kasbon={JSON.stringify(idKasbonPending)}
-                        data-mekanik-id={id}
-                        data-nama-mekanik={mekanik?.nama_mekanik}
-                        data-thp={thp}
-                        data-start={start}
-                        data-end={end}
-                        data-deskripsi={rincianDeskripsi}
-                        id="btnBayar"
-                    >
-                        <i class="fa-solid fa-money-bill-wave"></i> Bayar Gaji Sekarang
-                    </button>
-                </div>
-            )}
+            {
+                sudahDibayar ? (
+                    <div class="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-sm font-bold border border-emerald-200 inline-flex items-center gap-2">
+                        <i class="fa-solid fa-check-circle" /> Gaji Periode Ini
+                        Sudah Dibayar
+                    </div>
+                ) : (
+                    <div class="flex items-center gap-3">
+                        <select
+                            id="sumberDanaSelect"
+                            class="bg-white border border-slate-300 text-slate-700 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2 outline-none"
+                        >
+                            <option value="laci_kasir">Uang Laci Kasir</option>
+                            <option value="transfer_bank">Transfer Bank</option>
+                        </select>
+
+                        <button
+                            onclick="prosesPembayaranGaji()"
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-sm transition inline-flex items-center gap-2"
+                            data-id-kasbon={JSON.stringify(idKasbonPending)}
+                            data-mekanik-id={id}
+                            data-nama-mekanik={mekanik?.nama_mekanik}
+                            data-thp={thp}
+                            data-start={start}
+                            data-end={end}
+                            data-deskripsi={rincianDeskripsi}
+                            id="btnBayar"
+                        >
+                            <i class="fa-solid fa-money-bill-wave" /> Bayar Gaji
+                            Sekarang
+                        </button>
+                    </div>
+                )
+            }
         </div>
 
-        {errorMsg && (
-            <div class="bg-red-50 text-red-700 p-4 rounded-xl mb-6">
-                Terjadi kesalahan: {errorMsg}
-            </div>
-        )}
-
-        {mekanik && (
-            <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
-                
-                {/* Header */}
-                <div class="border-b-2 border-slate-900 pb-6 mb-6 flex justify-between items-end">
-                    <div>
-                        <h1 class="text-3xl font-black text-slate-900 uppercase tracking-tight">Rincian Gaji</h1>
-                        <p class="text-slate-500 mt-1 font-medium">Periode: {formatTgl(start)} - {formatTgl(end)}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-sm text-slate-500 uppercase tracking-wider font-bold mb-1">Nama Mekanik</p>
-                        <h2 class="text-xl font-black text-indigo-600">{mekanik.nama_mekanik}</h2>
-                        <p class="text-sm text-slate-500 mt-0.5">{mekanik.nomor_telepon}</p>
-                    </div>
+        {
+            errorMsg && (
+                <div class="bg-red-50 text-red-700 p-4 rounded-xl mb-6">
+                    Terjadi kesalahan: {errorMsg}
                 </div>
+            )
+        }
 
-                {/* Grid Rincian */}
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                    
-                    <div>
-                        <h3 class="text-sm font-bold text-emerald-600 uppercase tracking-wider border-b border-slate-100 pb-2 mb-3">
-                            <i class="fa-solid fa-plus-circle mr-1"></i> Pendapatan
-                        </h3>
-<div class="space-y-4 text-sm">
-                            {/* Rincian Komisi */}
-                            <div class="mb-2">
-                                <div class="flex justify-between items-end border-b border-slate-100 pb-2 mb-3">
-                                    <span class="text-slate-600 font-bold">Komisi Pekerjaan ({listKomisi.length} Servis)</span>
-                                    <span class="font-bold text-slate-800">{formatRp(totalKomisi)}</span>
-                                </div>
-                                
-                                {listKomisi.length === 0 ? (
-                                    <p class="text-slate-400 italic text-xs">Tidak ada komisi di periode ini.</p>
-                                ) : (
-                                    <div class="space-y-3 pl-3 border-l-2 border-emerald-100">
-                                        {listKomisi
-                                            .sort((a, b) => new Date(a.detail_transaksi_id?.transaksi_id?.tanggal_transaksi) - new Date(b.detail_transaksi_id?.transaksi_id?.tanggal_transaksi))
-                                            .map((k) => (
-                                            <div class="flex justify-between items-start">
-                                                <div>
-                                                    <div class="text-slate-700 font-medium text-xs">{k.detail_transaksi_id?.nama_item || 'Jasa Servis'}</div>
-                                                    <div class="text-slate-400 text-[11px] mt-0.5">{formatTgl(k.detail_transaksi_id?.transaksi_id?.tanggal_transaksi)}</div>
-                                                </div>
-                                                <span class="font-semibold text-slate-600 text-xs text-right">{formatRp(k.nominal_komisi_per_orang)}</span>
-                                            </div>
-                                        ))}
+        {
+            mekanik && (
+                <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
+                    {/* Header */}
+                    <div class="border-b-2 border-slate-900 pb-6 mb-6 flex justify-between items-end">
+                        <div>
+                            <h1 class="text-3xl font-black text-slate-900 uppercase tracking-tight">
+                                Rincian Gaji
+                            </h1>
+                            <p class="text-slate-500 mt-1 font-medium">
+                                Periode: {formatTgl(start)} - {formatTgl(end)}
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm text-slate-500 uppercase tracking-wider font-bold mb-1">
+                                Nama Mekanik
+                            </p>
+                            <h2 class="text-xl font-black text-indigo-600">
+                                {mekanik.nama_mekanik}
+                            </h2>
+                            <p class="text-sm text-slate-500 mt-0.5">
+                                {mekanik.nomor_telepon}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Grid Rincian */}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <h3 class="text-sm font-bold text-emerald-600 uppercase tracking-wider border-b border-slate-100 pb-2 mb-3">
+                                <i class="fa-solid fa-plus-circle mr-1" />{" "}
+                                Pendapatan
+                            </h3>
+                            <div class="space-y-4 text-sm">
+                                {/* Rincian Komisi */}
+                                <div class="mb-2">
+                                    <div class="flex justify-between items-end border-b border-slate-100 pb-2 mb-3">
+                                        <span class="text-slate-600 font-bold">
+                                            Komisi Pekerjaan (
+                                            {listKomisi.length} Servis)
+                                        </span>
+                                        <span class="font-bold text-slate-800">
+                                            {formatRp(totalKomisi)}
+                                        </span>
                                     </div>
+
+                                    {listKomisi.length === 0 ? (
+                                        <p class="text-slate-400 italic text-xs">
+                                            Tidak ada komisi di periode ini.
+                                        </p>
+                                    ) : (
+                                        <div class="space-y-3 pl-3 border-l-2 border-emerald-100">
+                                            {listKomisi
+                                                .sort(
+                                                    (a, b) =>
+                                                        new Date(
+                                                            a
+                                                                .detail_transaksi_id
+                                                                ?.transaksi_id
+                                                                ?.tanggal_transaksi,
+                                                        ) -
+                                                        new Date(
+                                                            b
+                                                                .detail_transaksi_id
+                                                                ?.transaksi_id
+                                                                ?.tanggal_transaksi,
+                                                        ),
+                                                )
+                                                .map((k) => (
+                                                    <div class="flex justify-between items-start">
+                                                        <div>
+                                                            <div class="text-slate-700 font-medium text-xs">
+                                                                {k
+                                                                    .detail_transaksi_id
+                                                                    ?.nama_item ||
+                                                                    "Jasa Servis"}
+                                                            </div>
+                                                            <div class="text-slate-400 text-[11px] mt-0.5">
+                                                                {formatTgl(
+                                                                    k
+                                                                        .detail_transaksi_id
+                                                                        ?.transaksi_id
+                                                                        ?.tanggal_transaksi,
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <span class="font-semibold text-slate-600 text-xs text-right">
+                                                            {formatRp(
+                                                                k.nominal_komisi_per_orang,
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Total Uang Makan */}
+                                <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+                                    <span class="text-slate-600 font-bold">
+                                        Total Uang Makan ({listAbsensi.length}{" "}
+                                        Hari)
+                                    </span>
+                                    <span class="font-bold text-slate-800">
+                                        {formatRp(totalUangMakan)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-sm font-bold text-red-600 uppercase tracking-wider border-b border-slate-100 pb-2 mb-3">
+                                <i class="fa-solid fa-minus-circle mr-1" />{" "}
+                                Potongan
+                            </h3>
+                            <div class="space-y-4 text-sm">
+                                {listKasbon.length === 0 ? (
+                                    <p class="text-slate-400 italic">
+                                        Tidak ada potongan kasbon.
+                                    </p>
+                                ) : (
+                                    listKasbon.map((k) => (
+                                        <div class="flex justify-between items-start mb-3 last:mb-0">
+                                            <div>
+                                                <div class="text-slate-700 font-medium">
+                                                    Kasbon{" "}
+                                                    {formatTgl(k.tanggal)}
+                                                </div>
+                                                {/* Rincian Keterangan dan Sumber Dana */}
+                                                {k.keterangan && (
+                                                    <div class="text-xs text-slate-500 mt-0.5">
+                                                        {k.keterangan}
+                                                    </div>
+                                                )}
+                                                {k.sumber_dana && (
+                                                    <div class="text-xs text-slate-400 mt-1">
+                                                        <i class="fa-solid fa-wallet mr-1" />
+                                                        Sumber Keluar:{" "}
+                                                        {k.sumber_dana ===
+                                                        "laci_kasir"
+                                                            ? "Laci Kasir"
+                                                            : "Transfer Bank"}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <span class="font-bold text-slate-800 text-right">
+                                                {formatRp(k.nominal)}
+                                            </span>
+                                        </div>
+                                    ))
                                 )}
                             </div>
-
-                            {/* Total Uang Makan */}
-                            <div class="flex justify-between items-center pt-2 border-t border-slate-100">
-                                <span class="text-slate-600 font-bold">Total Uang Makan ({listAbsensi.length} Hari)</span>
-                                <span class="font-bold text-slate-800">{formatRp(totalUangMakan)}</span>
-                            </div>
                         </div>
                     </div>
 
-                    <div>
-                        <h3 class="text-sm font-bold text-red-600 uppercase tracking-wider border-b border-slate-100 pb-2 mb-3">
-                            <i class="fa-solid fa-minus-circle mr-1"></i> Potongan
-                        </h3>
-                        <div class="space-y-4 text-sm">
-                            {listKasbon.length === 0 ? (
-                                <p class="text-slate-400 italic">Tidak ada potongan kasbon.</p>
-                            ) : (
-                                listKasbon.map(k => (
-                                    <div class="flex justify-between items-start mb-3 last:mb-0">
-                                        <div>
-                                            <div class="text-slate-700 font-medium">Kasbon {formatTgl(k.tanggal)}</div>
-                                            {/* Rincian Keterangan dan Sumber Dana */}
-                                            {k.keterangan && <div class="text-xs text-slate-500 mt-0.5">{k.keterangan}</div>}
-                                            {k.sumber_dana && (
-                                                <div class="text-xs text-slate-400 mt-1">
-                                                    <i class="fa-solid fa-wallet mr-1"></i> 
-                                                    Sumber Keluar: {k.sumber_dana === 'laci_kasir' ? 'Laci Kasir' : 'Transfer Bank'}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <span class="font-bold text-slate-800 text-right">{formatRp(k.nominal)}</span>
-                                    </div>
-                                ))
-                            )}
-                        </div>
+                    {/* Total THP */}
+                    <div
+                        class={`p-6 rounded-2xl flex justify-between items-center ${thp < 0 ? "bg-red-50 border-red-200" : "bg-slate-900"} border`}
+                    >
+                        <span
+                            class={`font-black uppercase tracking-wider ${thp < 0 ? "text-red-700" : "text-slate-300"}`}
+                        >
+                            Take Home Pay (THP)
+                        </span>
+                        <span
+                            class={`text-3xl font-black ${thp < 0 ? "text-red-700" : "text-emerald-400"}`}
+                        >
+                            {formatRp(thp)}
+                        </span>
                     </div>
                 </div>
-
-                {/* Total THP */}
-                <div class={`p-6 rounded-2xl flex justify-between items-center ${thp < 0 ? 'bg-red-50 border-red-200' : 'bg-slate-900'} border`}>
-                    <span class={`font-black uppercase tracking-wider ${thp < 0 ? 'text-red-700' : 'text-slate-300'}`}>
-                        Take Home Pay (THP)
-                    </span>
-                    <span class={`text-3xl font-black ${thp < 0 ? 'text-red-700' : 'text-emerald-400'}`}>
-                        {formatRp(thp)}
-                    </span>
-                </div>
-            </div>
-        )}
+            )
+        }
     </div>
 </Layout>
 
 <script is:inline>
     async function prosesPembayaranGaji() {
-        const btn = document.getElementById('btnBayar');
-        const sumberDana = document.getElementById('sumberDanaSelect').value;
-        
-        const idPending = JSON.parse(btn.getAttribute('data-id-kasbon'));
-        const mekanikId = btn.getAttribute('data-mekanik-id');
-        const namaMekanik = btn.getAttribute('data-nama-mekanik');
-        const thp = parseInt(btn.getAttribute('data-thp'));
-        const start = btn.getAttribute('data-start');
-        const end = btn.getAttribute('data-end');
-        const deskripsi = btn.getAttribute('data-deskripsi');
+        const btn = document.getElementById("btnBayar");
+        const sumberDana = document.getElementById("sumberDanaSelect").value;
+
+        const idPending = JSON.parse(btn.getAttribute("data-id-kasbon"));
+        const mekanikId = btn.getAttribute("data-mekanik-id");
+        const namaMekanik = btn.getAttribute("data-nama-mekanik");
+        const thp = parseInt(btn.getAttribute("data-thp"));
+        const start = btn.getAttribute("data-start");
+        const end = btn.getAttribute("data-end");
+        const deskripsi = btn.getAttribute("data-deskripsi");
 
         if (thp < 0) {
-            alert("Take Home Pay (THP) bernilai minus! Tidak bisa memproses penggajian. Pastikan potongan tidak lebih besar dari pendapatan.");
+            alert(
+                "Take Home Pay (THP) bernilai minus! Tidak bisa memproses penggajian. Pastikan potongan tidak lebih besar dari pendapatan.",
+            );
             return;
         }
 
-        const namaSumber = sumberDana === 'laci_kasir' ? 'Laci Kasir (Uang Tunai)' : 'Transfer Bank';
-        const konfirmasi = confirm(`Proses pembayaran sebesar Rp ${thp.toLocaleString('id-ID')} untuk ${namaMekanik}?\n\nDana akan diambil dari: ${namaSumber}\n\nTindakan ini akan mencatat pengeluaran dan mengunci periode ini.`);
-        if(!konfirmasi) return;
+        const namaSumber =
+            sumberDana === "laci_kasir"
+                ? "Laci Kasir (Uang Tunai)"
+                : "Transfer Bank";
+        const konfirmasi = confirm(
+            `Proses pembayaran sebesar Rp ${thp.toLocaleString("id-ID")} untuk ${namaMekanik}?\n\nDana akan diambil dari: ${namaSumber}\n\nTindakan ini akan mencatat pengeluaran dan mengunci periode ini.`,
+        );
+        if (!konfirmasi) return;
 
         const originalText = btn.innerHTML;
         btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Memproses...`;
         btn.disabled = true;
 
         try {
-            const response = await fetch('/api/bayar-gaji', {
-                method: 'POST',
+            const response = await fetch("/api/bayar-gaji", {
+                method: "POST",
                 headers: {
-                    'Content-Type': 'application/json'
+                    "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
                     mekanik_id: mekanikId,
@@ -279,8 +394,8 @@ const rincianDeskripsi = `Total Komisi: ${formatRp(totalKomisi)} | Uang Makan: $
                     nominal_thp: thp,
                     id_kasbon_pending: idPending,
                     deskripsi: deskripsi,
-                    sumber_dana: sumberDana
-                })
+                    sumber_dana: sumberDana,
+                }),
             });
 
             const result = await response.json();

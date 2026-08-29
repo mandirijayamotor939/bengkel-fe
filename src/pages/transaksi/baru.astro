@@ -13,8 +13,15 @@ const token = Astro.cookies.get("directus_token")?.value;
 try {
     // 2. Sisipkan Token pada header Authorization[cite: 13]
     const [resProduk, resMekanik] = await Promise.all([
-        api.get("/items/produk?filter[stok_qty][_gt]=0", { headers: { Authorization: `Bearer ${token}` } }),
-        api.get("/items/mekanik", { headers: { Authorization: `Bearer ${token}` } }),
+        // Tambahkan &limit=-1 agar semua produk di atas 100 item ikut terpanggil ke dropdown kasir
+        api.get("/items/produk?filter[stok_qty][_gt]=0&limit=-1", {
+            headers: { Authorization: `Bearer ${token}` },
+        }),
+
+        // Tambahkan juga ?limit=-1 untuk jaga-jaga jika jumlah mekanik bertambah banyak
+        api.get("/items/mekanik?limit=-1", {
+            headers: { Authorization: `Bearer ${token}` },
+        }),
     ]);
     daftarProduk = resProduk.data.data;
     daftarMekanik = resMekanik.data.data;
@@ -382,7 +389,9 @@ try {
             for (let i = 1; i < sparepartSelect.options.length; i++) {
                 const option = sparepartSelect.options[i];
                 const textContent = option.text.toLowerCase();
-                option.style.display = textContent.includes(filterText) ? "" : "none";
+                option.style.display = textContent.includes(filterText)
+                    ? ""
+                    : "none";
             }
         });
     }
@@ -397,15 +406,20 @@ try {
     document.getElementById("btn_tambah_item").addEventListener("click", () => {
         const tipe = tipeItemSelect.value;
         const keteranganInput = document.getElementById("keterangan_item");
-        const keteranganText = keteranganInput ? keteranganInput.value.trim() : "";
+        const keteranganText = keteranganInput
+            ? keteranganInput.value.trim()
+            : "";
 
         if (tipe === "sparepart") {
             const el = document.getElementById("sparepart_select");
             const selectedOpt = el.options[el.selectedIndex];
-            if (!el.value) return alert("Silakan pilih sparepart terlebih dahulu.");
+            if (!el.value)
+                return alert("Silakan pilih sparepart terlebih dahulu.");
 
-            const qty = parseInt(document.getElementById("sparepart_qty").value) || 1;
-            if (qty > parseInt(selectedOpt.dataset.stok)) return alert("Stok produk tidak mencukupi!");
+            const qty =
+                parseInt(document.getElementById("sparepart_qty").value) || 1;
+            if (qty > parseInt(selectedOpt.dataset.stok))
+                return alert("Stok produk tidak mencukupi!");
 
             keranjang.push({
                 tipe_item: "sparepart",
@@ -421,15 +435,20 @@ try {
             });
         } else if (tipe === "jasa") {
             const title = document.getElementById("jasa_title").value.trim();
-            const fee = parseInt(document.getElementById("jasa_fee").value) || 0;
-            const komisiPersen = parseInt(document.getElementById("jasa_persen").value) || 0;
+            const fee =
+                parseInt(document.getElementById("jasa_fee").value) || 0;
+            const komisiPersen =
+                parseInt(document.getElementById("jasa_persen").value) || 0;
 
             if (!title) return alert("Nama tindakan jasa wajib diisi.");
             if (fee <= 0) return alert("Biaya tindakan jasa tidak boleh Rp 0.");
 
             const mekanikEl = document.getElementById("mekanik_select");
-            const selectedMekanik = Array.from(mekanikEl.selectedOptions).map((opt) => opt.value);
-            if (selectedMekanik.length === 0) return alert("Minimal pilih 1 mekanik penanggung jawab.");
+            const selectedMekanik = Array.from(mekanikEl.selectedOptions).map(
+                (opt) => opt.value,
+            );
+            if (selectedMekanik.length === 0)
+                return alert("Minimal pilih 1 mekanik penanggung jawab.");
 
             const totalKomisi = Math.round(fee * (komisiPersen / 100));
 
@@ -447,12 +466,16 @@ try {
             });
         } else if (tipe === "ulakan") {
             const title = document.getElementById("ulakan_title").value.trim();
-            const modal = parseInt(document.getElementById("ulakan_modal").value) || 0;
-            const jual = parseInt(document.getElementById("ulakan_jual").value) || 0;
-            const qty = parseInt(document.getElementById("ulakan_qty").value) || 1;
+            const modal =
+                parseInt(document.getElementById("ulakan_modal").value) || 0;
+            const jual =
+                parseInt(document.getElementById("ulakan_jual").value) || 0;
+            const qty =
+                parseInt(document.getElementById("ulakan_qty").value) || 1;
 
             if (!title) return alert("Nama sparepart ulakan harus diisi.");
-            if (modal <= 0 || jual <= 0) return alert("Harga modal & harga jual ulakan wajib valid.");
+            if (modal <= 0 || jual <= 0)
+                return alert("Harga modal & harga jual ulakan wajib valid.");
 
             keranjang.push({
                 tipe_item: "ulakan",
@@ -489,7 +512,9 @@ try {
 
         if (document.getElementById("search_sparepart")) {
             document.getElementById("search_sparepart").value = "";
-            Array.from(document.getElementById("sparepart_select").options).forEach((opt) => (opt.style.display = ""));
+            Array.from(
+                document.getElementById("sparepart_select").options,
+            ).forEach((opt) => (opt.style.display = ""));
         }
     }
 
@@ -511,9 +536,13 @@ try {
             grandTotal += subtotal;
 
             let badgeColor = "bg-blue-50 text-blue-600";
-            if (item.tipe_item === "jasa") badgeColor = "bg-purple-50 text-purple-600";
-            if (item.tipe_item === "ulakan") badgeColor = "bg-amber-50 text-amber-600";
-            let ketHtml = item.keterangan ? `<div class="text-[11px] font-normal text-slate-400 mt-1 whitespace-pre-wrap leading-relaxed"><i class="fa-solid fa-note-sticky mr-1"></i> ${item.keterangan}</div>` : "";
+            if (item.tipe_item === "jasa")
+                badgeColor = "bg-purple-50 text-purple-600";
+            if (item.tipe_item === "ulakan")
+                badgeColor = "bg-amber-50 text-amber-600";
+            let ketHtml = item.keterangan
+                ? `<div class="text-[11px] font-normal text-slate-400 mt-1 whitespace-pre-wrap leading-relaxed"><i class="fa-solid fa-note-sticky mr-1"></i> ${item.keterangan}</div>`
+                : "";
 
             html += `
                 <tr class="border-b border-slate-100 hover:bg-slate-50/50">
@@ -538,73 +567,93 @@ try {
         renderKeranjang();
     };
 
-    document.getElementById("btn_simpan_transaksi").addEventListener("click", async () => {
-        if (keranjang.length === 0) return alert("Keranjang belanja kosong! Harap isi item terlebih dahulu.");
+    document
+        .getElementById("btn_simpan_transaksi")
+        .addEventListener("click", async () => {
+            if (keranjang.length === 0)
+                return alert(
+                    "Keranjang belanja kosong! Harap isi item terlebih dahulu.",
+                );
 
-        const btnSimpan = document.getElementById("btn_simpan_transaksi");
-        const originalText = btnSimpan.innerHTML;
-        btnSimpan.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> MEMPROSES TRANSAKSI...`;
-        btnSimpan.disabled = true;
+            const btnSimpan = document.getElementById("btn_simpan_transaksi");
+            const originalText = btnSimpan.innerHTML;
+            btnSimpan.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> MEMPROSES TRANSAKSI...`;
+            btnSimpan.disabled = true;
 
-        let totalHarga = 0;
-        let totalProfit = 0;
+            let totalHarga = 0;
+            let totalProfit = 0;
 
-        keranjang.forEach((item) => {
-            const subtotal = item.harga_jual_snapshot * item.qty;
-            totalHarga += subtotal;
+            keranjang.forEach((item) => {
+                const subtotal = item.harga_jual_snapshot * item.qty;
+                totalHarga += subtotal;
 
-            if (item.tipe_item === "sparepart" || item.tipe_item === "ulakan") {
-                totalProfit += (item.harga_jual_snapshot - item.harga_modal_snapshot) * item.qty;
-            } else if (item.tipe_item === "jasa") {
-                totalProfit += subtotal - item.total_komisi_jasa;
-            }
-        });
-
-        const statusPembayaran = document.getElementById("status_nota").value;
-        const metodePembayaran = document.getElementById("metode_pembayaran").value;
-
-        const now = new Date();
-        const tzOffset = now.getTimezoneOffset() * 60000;
-        const waktuSekarang = new Date(now.getTime() - tzOffset).toISOString().slice(0, -1);
-
-        const payloadTransaksi = {
-            tanggal_transaksi: waktuSekarang,
-            total_harga: totalHarga,
-            total_profit: totalProfit,
-            status_nota: statusPembayaran,
-            metode_pembayaran: metodePembayaran,
-        };
-
-        // Kumpulkan semua data dan tembak ke endpoint internal kita
-        const payloadLengkap = {
-            payloadTransaksi,
-            keranjang,
-            metodePembayaran,
-            statusPembayaran,
-            waktuSekarang
-        };
-
-        try {
-            const response = await fetch('/api/simpan-transaksi', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payloadLengkap)
+                if (
+                    item.tipe_item === "sparepart" ||
+                    item.tipe_item === "ulakan"
+                ) {
+                    totalProfit +=
+                        (item.harga_jual_snapshot - item.harga_modal_snapshot) *
+                        item.qty;
+                } else if (item.tipe_item === "jasa") {
+                    totalProfit += subtotal - item.total_komisi_jasa;
+                }
             });
 
-            const result = await response.json();
+            const statusPembayaran =
+                document.getElementById("status_nota").value;
+            const metodePembayaran =
+                document.getElementById("metode_pembayaran").value;
 
-            if (result.success) {
-                alert("Transaksi Berhasil Dicatat! Data Keuangan di Dashboard Otomatis Terupdate.");
-                window.location.href = "/";
-            } else {
-                throw new Error(result.message || "Gagal menyimpan ke server");
+            const now = new Date();
+            const tzOffset = now.getTimezoneOffset() * 60000;
+            const waktuSekarang = new Date(now.getTime() - tzOffset)
+                .toISOString()
+                .slice(0, -1);
+
+            const payloadTransaksi = {
+                tanggal_transaksi: waktuSekarang,
+                total_harga: totalHarga,
+                total_profit: totalProfit,
+                status_nota: statusPembayaran,
+                metode_pembayaran: metodePembayaran,
+            };
+
+            // Kumpulkan semua data dan tembak ke endpoint internal kita
+            const payloadLengkap = {
+                payloadTransaksi,
+                keranjang,
+                metodePembayaran,
+                statusPembayaran,
+                waktuSekarang,
+            };
+
+            try {
+                const response = await fetch("/api/simpan-transaksi", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payloadLengkap),
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(
+                        "Transaksi Berhasil Dicatat! Data Keuangan di Dashboard Otomatis Terupdate.",
+                    );
+                    window.location.href = "/";
+                } else {
+                    throw new Error(
+                        result.message || "Gagal menyimpan ke server",
+                    );
+                }
+            } catch (e) {
+                console.error(e);
+                alert(
+                    "Terjadi kesalahan saat menyimpan transaksi: " + e.message,
+                );
+            } finally {
+                btnSimpan.innerHTML = originalText;
+                btnSimpan.disabled = false;
             }
-        } catch (e) {
-            console.error(e);
-            alert("Terjadi kesalahan saat menyimpan transaksi: " + e.message);
-        } finally {
-            btnSimpan.innerHTML = originalText;
-            btnSimpan.disabled = false;
-        }
-    });
+        });
 </script>

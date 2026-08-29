@@ -41,7 +41,7 @@ export const POST = async ({ request, cookies }) => {
                 const sumberDanaUlakan = metodePembayaran === "cash" ? "laci_kasir" : "transfer_bank";
 
                 const payloadPengeluaran = {
-                    tanggal_pengeluaran: waktuSekarang,
+                    tanggal_pengeluaran: waktuSekarang.split("T")[0],
                     keterangan: `Beli Ulakan: ${item.nama_item} (Ref Trx: #${newTransaksiId})`,
                     nominal: nominalPengeluaran,
                     kategori: "aset/ulakan",
