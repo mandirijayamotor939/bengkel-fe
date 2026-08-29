@@ -105,13 +105,19 @@ const formatRp = (angka) =>
         currency: "IDR",
         maximumFractionDigits: 0,
     }).format(angka || 0);
-const formatTgl = (tgl) =>
-    new Intl.DateTimeFormat("id-ID", {
-        timeZone: "Asia/Jakarta",
+const formatTgl = (tgl) => {
+    if (!tgl) return "-";
+    
+    // Potong string dari Directus, buang jamnya, ambil tanggalnya saja
+    const dateOnly = tgl.toString().split("T")[0];
+    
+    // Paksa parsing pada jam 00:00 lokal agar tidak melompat hari
+    return new Intl.DateTimeFormat("id-ID", {
         day: "2-digit",
         month: "long",
         year: "numeric",
-    }).format(new Date(tgl));
+    }).format(new Date(`${dateOnly}T00:00:00`)); 
+};
 
 const rincianDeskripsi = `Total Komisi: ${formatRp(totalKomisi)} | Uang Makan: ${formatRp(totalUangMakan)} | Potongan Kasbon: ${formatRp(totalPotongan)} | THP: ${formatRp(thp)}`;
 ---
