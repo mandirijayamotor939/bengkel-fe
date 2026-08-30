@@ -31,28 +31,24 @@ try {
     );
     sudahDibayar = resRiwayat.data.data && resRiwayat.data.data.length > 0;
 
-// 3. Tarik Data Komisi Jasa (Tarik normal, jangan filter tanggal di API)
-    const resKomisi = await getWithAuth(
-        `/items/detail_transaksi_mekanik?filter[mekanik_id][_eq]=${id}&fields=*,detail_transaksi_id.nama_item,detail_transaksi_id.transaksi_id.id,detail_transaksi_id.transaksi_id.tanggal_transaksi`,
-        token,
+// 3. Tarik Data Komisi Jasa (Metode 2 Langkah)
+    // Langkah A: Cari semua ID Transaksi yang terjadi pada rentang tanggal terpilih
+    const resTrx = await getWithAuth(
+        `/items/transaksi?filter[tanggal_transaksi][_gte]=${start}T00:00:00&filter[tanggal_transaksi][_lte]=${end}T23:59:59&fields=id`,
+        token
     );
-    const allKomisi = resKomisi.data.data || [];
+    const validTrxIds = (resTrx.data.data || []).map(t => t.id);
 
-    // Filter langsung via JavaScript menggunakan Intl.DateTimeFormat (Tahan banting zona waktu)
-    listKomisi = allKomisi.filter((k) => {
-        const rawTgl = k.detail_transaksi_id?.transaksi_id?.tanggal_transaksi;
-        if (!rawTgl) return false;
-
-        // Ekstrak menjadi format YYYY-MM-DD murni sesuai jam Jakarta (WIB)
-        const tglTrx = new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Asia/Jakarta',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-        }).format(new Date(rawTgl));
-
-        return tglTrx >= start && tglTrx <= end;
-    });
+    // Langkah B: Tarik komisi mekanik hanya dari daftar ID Transaksi yang sah
+    if (validTrxIds.length > 0) {
+        const resKomisi = await getWithAuth(
+            `/items/detail_transaksi_mekanik?filter[mekanik_id][_eq]=${id}&filter[detail_transaksi_id][transaksi_id][_in]=${validTrxIds.join(',')}&fields=*,detail_transaksi_id.nama_item,detail_transaksi_id.transaksi_id.id,detail_transaksi_id.transaksi_id.tanggal_transaksi`,
+            token
+        );
+        listKomisi = resKomisi.data.data || [];
+    } else {
+        listKomisi = [];
+    }
 
     // 4. Tarik Data Uang Makan
     const resAbsensi = await getWithAuth(
@@ -110,16 +106,12 @@ const formatRp = (angka) =>
     }).format(angka || 0);
 const formatTgl = (tgl) => {
     if (!tgl) return "-";
-    
-    // Potong string dari Directus, buang jamnya, ambil tanggalnya saja
-    const dateOnly = tgl.toString().split("T")[0];
-    
-    // Paksa parsing pada jam 00:00 lokal agar tidak melompat hari
     return new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Jakarta",
         day: "2-digit",
         month: "long",
         year: "numeric",
-    }).format(new Date(`${dateOnly}T00:00:00`)); 
+    }).format(new Date(tgl)); 
 };
 
 const rincianDeskripsi = `Total Komisi: ${formatRp(totalKomisi)} | Uang Makan: ${formatRp(totalUangMakan)} | Potongan Kasbon: ${formatRp(totalPotongan)} | THP: ${formatRp(thp)}`;
