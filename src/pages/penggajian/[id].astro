@@ -26,7 +26,7 @@ try {
 
     // 2. Cek Riwayat Penggajian (Deteksi Overlap Tanggal)
     const resRiwayat = await getWithAuth(
-        `/items/riwayat_penggajian?filter[mekanik_id][_eq]=${id}&filter[periode_mulai][_lte]=${end}&filter[periode_selesai][_gte]=${start}`,
+        `/items/riwayat_penggajian?filter[mekanik_id][_eq]=${id}&filter[periode_mulai][_lte]=${end}&filter[periode_selesai][_gte]=${start}&limit=-1`,
         token,
     );
     sudahDibayar = resRiwayat.data.data && resRiwayat.data.data.length > 0;
@@ -42,7 +42,7 @@ try {
 
     // Langkah A: Cari ID Transaksi (Disisipkan &_t=freshStamp)
     const resTrx = await getWithAuth(
-        `/items/transaksi?filter[tanggal_transaksi][_gte]=${startWIB}&filter[tanggal_transaksi][_lte]=${endWIB}&fields=id&_t=${freshStamp}`,
+        `/items/transaksi?filter[tanggal_transaksi][_gte]=${startWIB}&filter[tanggal_transaksi][_lte]=${endWIB}&fields=id&limit=-1&_t=${freshStamp}`,
         token
     );
     const validTrxIds = (resTrx.data.data || []).map(t => t.id);
@@ -50,7 +50,7 @@ try {
     // Langkah B: Tarik komisi mekanik (Disisipkan &_t=freshStamp)
     if (validTrxIds.length > 0) {
         const resKomisi = await getWithAuth(
-            `/items/detail_transaksi_mekanik?filter[mekanik_id][_eq]=${id}&filter[detail_transaksi_id][transaksi_id][_in]=${validTrxIds.join(',')}&fields=*,detail_transaksi_id.nama_item,detail_transaksi_id.transaksi_id.id,detail_transaksi_id.transaksi_id.tanggal_transaksi&_t=${freshStamp}`,
+            `/items/detail_transaksi_mekanik?filter[mekanik_id][_eq]=${id}&filter[detail_transaksi_id][transaksi_id][_in]=${validTrxIds.join(',')}&fields=*,detail_transaksi_id.nama_item,detail_transaksi_id.transaksi_id.id,detail_transaksi_id.transaksi_id.tanggal_transaksi&limit=-1&_t=${freshStamp}`,
             token
         );
         listKomisi = resKomisi.data.data || [];
@@ -59,7 +59,7 @@ try {
     }
     // 4. Tarik Data Uang Makan
     const resAbsensi = await getWithAuth(
-        `/items/absensi_mekanik?filter[mekanik_id][_eq]=${id}&filter[status][_eq]=hadir&filter[tanggal][_gte]=${start}&filter[tanggal][_lte]=${end}`,
+        `/items/absensi_mekanik?filter[mekanik_id][_eq]=${id}&filter[status][_eq]=hadir&filter[tanggal][_gte]=${start}&filter[tanggal][_lte]=${end}&limit=-1`,
         token,
     );
     listAbsensi = resAbsensi.data.data || [];
@@ -68,14 +68,14 @@ try {
     if (!sudahDibayar) {
         // [KONDISI 1]: Jika BELUM dibayar, tarik semua kasbon yang belum dilunasi
         const resKasbon = await getWithAuth(
-            `/items/kasbon_mekanik?filter[mekanik_id][_eq]=${id}&filter[status_potong][_eq]=belum_lunas`,
+            `/items/kasbon_mekanik?filter[mekanik_id][_eq]=${id}&filter[status_potong][_eq]=belum_lunas&limit=-1`,
             token,
         );
         listKasbon = resKasbon.data.data || [];
     } else {
         // [KONDISI 2]: Jika SUDAH dibayar, tarik histori kasbon khusus pada rentang tanggal yang dipilih saja
         const resKasbon = await getWithAuth(
-            `/items/kasbon_mekanik?filter[mekanik_id][_eq]=${id}&filter[tanggal][_gte]=${start}&filter[tanggal][_lte]=${end}`,
+            `/items/kasbon_mekanik?filter[mekanik_id][_eq]=${id}&filter[tanggal][_gte]=${start}&filter[tanggal][_lte]=${end}&limit=-1`,
             token,
         );
         listKasbon = resKasbon.data.data || [];
