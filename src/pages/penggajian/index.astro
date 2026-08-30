@@ -17,16 +17,18 @@ try {
     isError = true;
 }
 
-// Logika mencari default hari Senin dan Minggu di minggu berjalan
+// Logika mencari default hari Minggu sampai Sabtu di minggu berjalan
 const hariIni = new Date();
 const hari = hariIni.getDay(); // 0 = Minggu, 1 = Senin, dst
-const selisihSenin = hari === 0 ? -6 : 1 - hari;
 
-const tglSenin = new Date(hariIni);
-tglSenin.setDate(hariIni.getDate() + selisihSenin);
+// Mundur ke hari Minggu (karena Minggu = 0, kita tinggal kurangi dengan nilai harinya)
+const selisihMinggu = -hari; 
 
-const tglMinggu = new Date(tglSenin);
-tglMinggu.setDate(tglSenin.getDate() + 6);
+const tglAwalMinggu = new Date(hariIni);
+tglAwalMinggu.setDate(hariIni.getDate() + selisihMinggu);
+
+const tglAkhirSabtu = new Date(tglAwalMinggu);
+tglAkhirSabtu.setDate(tglAwalMinggu.getDate() + 6);
 
 // Format YYYY-MM-DD untuk input type="date"
 const formatWIB = (date) => new Intl.DateTimeFormat('en-CA', { 
@@ -36,8 +38,8 @@ const formatWIB = (date) => new Intl.DateTimeFormat('en-CA', {
     day: '2-digit' 
 }).format(date);
 
-const defaultMulai = formatWIB(tglSenin);
-const defaultSelesai = formatWIB(tglMinggu);
+const defaultMulai = formatWIB(tglAwalMinggu);
+const defaultSelesai = formatWIB(tglAkhirSabtu);
 ---
 
 <Layout title="Sistem Penggajian & Komisi">

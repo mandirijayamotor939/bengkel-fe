@@ -672,12 +672,10 @@ const formatRp = (angka) =>
             const rNominal = parseFloat(row.getAttribute("data-nominal")) || 0;
             const rTerjual = parseFloat(row.getAttribute("data-terjual")) || 0;
 
-            // Logika Pencocokan
             const matchSearch = !q || rKet.includes(q);
             const matchKategori = !k || rKat === k;
             const matchSumber = !s || rSumber === s;
 
-            // Logika Filter Tanggal
             let matchDate = true;
             if (sDate && rTanggal < sDate) matchDate = false;
             if (eDate && rTanggal > eDate) matchDate = false;

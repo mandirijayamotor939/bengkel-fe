@@ -40,13 +40,14 @@ try {
     listKomisi = allKomisi.filter((k) => {
         if (!k.detail_transaksi_id?.transaksi_id?.tanggal_transaksi)
             return false;
-
-        // Ambil waktu mentah UTC, tambahkan offset +7 jam (25200000 ms) untuk WIB
-        const rawDate = new Date(
-            k.detail_transaksi_id.transaksi_id.tanggal_transaksi,
-        );
-        const wibDate = new Date(rawDate.getTime() + 7 * 60 * 60 * 1000);
-        const tglTrx = wibDate.toISOString().split("T")[0];
+        // Gunakan fungsi bawaan Intl.DateTimeFormat (format en-CA menghasilkan YYYY-MM-DD)
+        // Cara ini mutlak akurat membaca zona waktu WIB tanpa perlu kalkulasi penambahan jam manual
+        const tglTrx = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Jakarta',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).format(new Date(k.detail_transaksi_id.transaksi_id.tanggal_transaksi));
 
         return tglTrx >= start && tglTrx <= end;
     });
