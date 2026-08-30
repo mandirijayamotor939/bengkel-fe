@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Konfigurasi instance axios global
 export const api = axios.create({
-  baseURL: import.meta.env.PUBLIC_DIRECTUS_URL || 'http://localhost:8055',
+  baseURL: import.meta.env.PUBLIC_DIRECTUS_URL || 'http://localhost:8055' || 'https://bengkel-jaya-production.up.railway.app',
   headers: {
     'Content-Type': 'application/json',
   },

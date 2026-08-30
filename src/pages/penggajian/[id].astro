@@ -31,25 +31,32 @@ try {
     );
     sudahDibayar = resRiwayat.data.data && resRiwayat.data.data.length > 0;
 
-// 3. Tarik Data Komisi Jasa (Metode 2 Langkah)
-    // Langkah A: Cari semua ID Transaksi yang terjadi pada rentang tanggal terpilih
+// 3. Tarik Data Komisi Jasa (Metode 2 Langkah dengan Cache-Buster)
+    
+    // Konversi batas tanggal ke format UTC yang absolut berdasarkan WIB
+    const startWIB = new Date(`${start}T00:00:00+07:00`).toISOString();
+    const endWIB = new Date(`${end}T23:59:59+07:00`).toISOString();
+
+    // Buat stempel waktu unik agar Vercel dipaksa membuang cache lama
+    const freshStamp = Date.now();
+
+    // Langkah A: Cari ID Transaksi (Disisipkan &_t=freshStamp)
     const resTrx = await getWithAuth(
-        `/items/transaksi?filter[tanggal_transaksi][_gte]=${start}T00:00:00%2B07:00&filter[tanggal_transaksi][_lte]=${end}T23:59:59%2B07:00&fields=id`,
+        `/items/transaksi?filter[tanggal_transaksi][_gte]=${startWIB}&filter[tanggal_transaksi][_lte]=${endWIB}&fields=id&_t=${freshStamp}`,
         token
     );
     const validTrxIds = (resTrx.data.data || []).map(t => t.id);
 
-    // Langkah B: Tarik komisi mekanik hanya dari daftar ID Transaksi yang sah
+    // Langkah B: Tarik komisi mekanik (Disisipkan &_t=freshStamp)
     if (validTrxIds.length > 0) {
         const resKomisi = await getWithAuth(
-            `/items/detail_transaksi_mekanik?filter[mekanik_id][_eq]=${id}&filter[detail_transaksi_id][transaksi_id][_in]=${validTrxIds.join(',')}&fields=*,detail_transaksi_id.nama_item,detail_transaksi_id.transaksi_id.id,detail_transaksi_id.transaksi_id.tanggal_transaksi`,
+            `/items/detail_transaksi_mekanik?filter[mekanik_id][_eq]=${id}&filter[detail_transaksi_id][transaksi_id][_in]=${validTrxIds.join(',')}&fields=*,detail_transaksi_id.nama_item,detail_transaksi_id.transaksi_id.id,detail_transaksi_id.transaksi_id.tanggal_transaksi&_t=${freshStamp}`,
             token
         );
         listKomisi = resKomisi.data.data || [];
     } else {
         listKomisi = [];
     }
-
     // 4. Tarik Data Uang Makan
     const resAbsensi = await getWithAuth(
         `/items/absensi_mekanik?filter[mekanik_id][_eq]=${id}&filter[status][_eq]=hadir&filter[tanggal][_gte]=${start}&filter[tanggal][_lte]=${end}`,
