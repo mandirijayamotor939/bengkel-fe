@@ -34,7 +34,7 @@ try {
 // 3. Tarik Data Komisi Jasa (Metode 2 Langkah)
     // Langkah A: Cari semua ID Transaksi yang terjadi pada rentang tanggal terpilih
     const resTrx = await getWithAuth(
-        `/items/transaksi?filter[tanggal_transaksi][_gte]=${start}T00:00:00&filter[tanggal_transaksi][_lte]=${end}T23:59:59&fields=id`,
+        `/items/transaksi?filter[tanggal_transaksi][_gte]=${start}T00:00:00%2B07:00&filter[tanggal_transaksi][_lte]=${end}T23:59:59%2B07:00&fields=id`,
         token
     );
     const validTrxIds = (resTrx.data.data || []).map(t => t.id);
