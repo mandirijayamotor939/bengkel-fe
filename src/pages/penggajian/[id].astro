@@ -31,26 +31,15 @@ try {
     );
     sudahDibayar = resRiwayat.data.data && resRiwayat.data.data.length > 0;
 
-    // 3. Tarik Data Komisi Jasa
+// 3. Tarik Data Komisi Jasa (Filter tanggal langsung via API Directus)
     const resKomisi = await getWithAuth(
-        `/items/detail_transaksi_mekanik?filter[mekanik_id][_eq]=${id}&fields=*,detail_transaksi_id.nama_item,detail_transaksi_id.transaksi_id.id,detail_transaksi_id.transaksi_id.tanggal_transaksi`,
+        `/items/detail_transaksi_mekanik?filter[mekanik_id][_eq]=${id}&filter[detail_transaksi_id][transaksi_id][tanggal_transaksi][_gte]=${start}T00:00:00&filter[detail_transaksi_id][transaksi_id][tanggal_transaksi][_lte]=${end}T23:59:59&fields=*,detail_transaksi_id.nama_item,detail_transaksi_id.transaksi_id.id,detail_transaksi_id.transaksi_id.tanggal_transaksi`,
         token,
     );
-    const allKomisi = resKomisi.data.data || [];
-    listKomisi = allKomisi.filter((k) => {
-        if (!k.detail_transaksi_id?.transaksi_id?.tanggal_transaksi)
-            return false;
-        // Gunakan fungsi bawaan Intl.DateTimeFormat (format en-CA menghasilkan YYYY-MM-DD)
-        // Cara ini mutlak akurat membaca zona waktu WIB tanpa perlu kalkulasi penambahan jam manual
-        const tglTrx = new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Asia/Jakarta',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-        }).format(new Date(k.detail_transaksi_id.transaksi_id.tanggal_transaksi));
-
-        return tglTrx >= start && tglTrx <= end;
-    });
+    
+    // Karena data yang masuk sudah disaring oleh server sesuai rentang tanggal,
+    // kita tidak perlu lagi menggunakan logika .filter() dan offset jam.
+    listKomisi = resKomisi.data.data || [];
 
     // 4. Tarik Data Uang Makan
     const resAbsensi = await getWithAuth(
