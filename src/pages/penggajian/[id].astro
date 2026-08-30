@@ -34,10 +34,9 @@ try {
 // 3. Tarik Data Komisi Jasa (Metode 2 Langkah dengan Cache-Buster)
     
     // Konversi batas tanggal ke format UTC yang absolut berdasarkan WIB
-    const startWIB = new Date(`${start}T00:00:00+07:00`).toISOString();
-    const endWIB = new Date(`${end}T23:59:59+07:00`).toISOString();
+    const startWIB = `${start}T00:00:00`;
+    const endWIB = `${end}T23:59:59`;
 
-    // Buat stempel waktu unik agar Vercel dipaksa membuang cache lama
     const freshStamp = Date.now();
 
     // Langkah A: Cari ID Transaksi (Disisipkan &_t=freshStamp)
@@ -111,14 +110,22 @@ const formatRp = (angka) =>
         currency: "IDR",
         maximumFractionDigits: 0,
     }).format(angka || 0);
+    
 const formatTgl = (tgl) => {
     if (!tgl) return "-";
+    
+    // Jika data berupa DateTime (mengandung 'T') dan belum memiliki info zona waktu, paksa tempelkan +07:00 (WIB)
+    let safeTgl = tgl;
+    if (tgl.includes('T') && !tgl.includes('Z') && !tgl.includes('+')) {
+        safeTgl = `${tgl}+07:00`;
+    }
+
     return new Intl.DateTimeFormat("id-ID", {
         timeZone: "Asia/Jakarta",
         day: "2-digit",
         month: "long",
         year: "numeric",
-    }).format(new Date(tgl)); 
+    }).format(new Date(safeTgl)); 
 };
 
 const rincianDeskripsi = `Total Komisi: ${formatRp(totalKomisi)} | Uang Makan: ${formatRp(totalUangMakan)} | Potongan Kasbon: ${formatRp(totalPotongan)} | THP: ${formatRp(thp)}`;
