@@ -8,7 +8,7 @@ let listProduk = [];
 let isError = false;
 
 try {
-    const resProduk = await getWithAuth("/items/produk?sort=nama_produk", token);
+    const resProduk = await getWithAuth("/items/produk?sort=nama_produk&limit=-1", token);
     listProduk = resProduk.data.data || [];
 } catch (error) {
     console.error("Gagal menarik data produk:", error.message);
@@ -83,7 +83,7 @@ const hariIni = new Intl.DateTimeFormat("en-CA", {
                     </div>
                 </div>
 
-                <div class="overflow-x-auto mb-8">
+                <div class="mb-8">
                     <table class="w-full text-left text-sm" id="tabelRestok">
                         <thead class="bg-slate-50 text-xs uppercase font-black text-slate-500 border-y border-slate-200">
                             <tr>
@@ -116,14 +116,54 @@ const hariIni = new Intl.DateTimeFormat("en-CA", {
             </form>
         </div>
     </div>
+    <style is:inline>
+    /* Menyamakan bentuk kotak input dengan Tailwind (rounded-lg, border-slate-300) */
+    .ts-wrapper .ts-control {
+        padding: 0.5rem 0.75rem !important; 
+        border-radius: 0.5rem !important; 
+        border: 1px solid #cbd5e1 !important; 
+        font-size: 0.875rem !important; 
+        background-color: #ffffff !important;
+        box-shadow: none !important;
+        transition: all 0.2s ease-in-out;
+    }
+
+    .ts-wrapper.focus .ts-control {
+        border-color: #6366f1 !important; 
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important; 
+    }
+    
+    .ts-dropdown {
+        border-radius: 0.5rem !important;
+        border: 1px solid #cbd5e1 !important;
+        font-size: 0.875rem !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important; /* shadow-lg */
+        margin-top: 4px !important;
+        z-index: 50 !important;
+    }
+
+    .ts-dropdown .option {
+        padding: 0.5rem 0.75rem !important;
+        cursor: pointer;
+    }
+
+    .ts-dropdown .option:hover,
+    .ts-dropdown .active {
+        background-color: #eef2ff !important; 
+        color: #4f46e5 !important; 
+        font-weight: 500;
+    }
+</style>
 </Layout>
+
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.default.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js" is:inline></script>
 
 <script is:inline define:vars={{ listProduk }}>
     function formatRupiah(angka) {
         return new Intl.NumberFormat('id-ID').format(angka);
     }
 
-    // --- DI-TEMPEL KE WINDOW AGAR BISA DIPANGGIL OLEH HTML ONCLICK ---
     window.hitungTotal = function() {
         let totalRestok = 0;
         const baris = document.querySelectorAll('.baris-item');
@@ -141,36 +181,21 @@ const hariIni = new Intl.DateTimeFormat("en-CA", {
         document.getElementById('tampilanTotal').innerText = `Rp ${formatRupiah(totalRestok)}`;
     };
 
-    window.setHargaDefault = function(selectElement) {
-        const selectedOption = selectElement.options[selectElement.selectedIndex];
-        const hargaModalLama = selectedOption.getAttribute('data-modal') || 0;
-        const hargaJualLama = selectedOption.getAttribute('data-jual') || 0;
-        
-        const row = selectElement.closest('tr');
-        const inputModal = row.querySelector('.input-modal');
-        const inputJual = row.querySelector('.input-jual');
-        
-        // Langsung isi nilainya secara otomatis
-        inputModal.value = hargaModalLama;
-        inputJual.value = hargaJualLama;
-        
-        // Panggil perhitungan otomatis
-        window.hitungTotal();
-    };
 
-    window.tambahBaris = function() {
+window.tambahBaris = function() {
         const tbody = document.getElementById('wadahBaris');
         
+        // Kita tidak lagi butuh data-modal dan data-jual di HTML, karena akan ditarik langsung dari listProduk
         const opsiProduk = listProduk.map(p => 
-            `<option value="${p.id}" data-modal="${p.harga_modal}" data-jual="${p.harga_jual}">${p.nama_produk}</option>`
+            `<option value="${p.id}">${p.nama_produk}</option>`
         ).join('');
 
         const tr = document.createElement('tr');
         tr.className = 'baris-item hover:bg-slate-50 transition';
         tr.innerHTML = `
             <td class="px-3 py-3">
-                <select class="input-produk w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white" required onchange="window.setHargaDefault(this)">
-                    <option value="" disabled selected>-- Pilih Produk --</option>
+                <select class="input-produk w-full" required placeholder="Cari nama barang...">
+                    <option value="" disabled selected>-- Cari Produk --</option>
                     ${opsiProduk}
                 </select>
             </td>
@@ -193,6 +218,22 @@ const hariIni = new Intl.DateTimeFormat("en-CA", {
             </td>
         `;
         tbody.appendChild(tr);
+
+        // Ubah elemen <select> biasa menjadi fitur pencarian otomatis
+        const selectEl = tr.querySelector('.input-produk');
+        new TomSelect(selectEl, {
+            create: false, 
+            sortField: { field: "text", direction: "asc" },
+            onChange: function(value) {
+                // Cari data produk berdasarkan ID yang diklik
+                const produk = listProduk.find(p => p.id == value);
+                if (produk) {
+                    tr.querySelector('.input-modal').value = produk.harga_modal || 0;
+                    tr.querySelector('.input-jual').value = produk.harga_jual || 0;
+                    window.hitungTotal();
+                }
+            }
+        });
     };
 
     window.hapusBaris = function(btn) {
