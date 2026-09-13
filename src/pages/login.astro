@@ -157,26 +157,37 @@ if (token) {
 
                         if (response.ok && data.data?.access_token) {
                             const token = data.data.access_token;
-                            const refreshToken = data.data.refresh_token; // <-- TANGKAP REFRESH TOKEN
+                            const refreshToken = data.data.refresh_token;
 
-                            // Simpan Access Token (29 Menit / 1740 detik) agar refresh token terpicu lebih awal
+                            // Tarik data profil untuk mendapatkan nama role
+                            try {
+                                const profileRes = await fetch(
+                                    `${baseUrl}/users/me?fields=role.name`,
+                                    {
+                                        headers: {
+                                            Authorization: `Bearer ${token}`,
+                                        },
+                                    },
+                                );
+                                const profileData = await profileRes.json();
+                                const roleName =
+                                    profileData.data?.role?.name?.toLowerCase() ||
+                                    "";
+
+                                // Simpan Role ke Cookie agar dibaca Middleware
+                                document.cookie = `user_role=${roleName}; path=/; max-age=604800; samesite=strict;`;
+                            } catch (err) {
+                                console.error("Gagal menarik role:", err);
+                            }
+
                             document.cookie = `directus_token=${token}; path=/; max-age=1740; samesite=strict;`;
 
-                            // Simpan Refresh Token (7 Hari / 604800 detik)
                             if (refreshToken) {
                                 document.cookie = `directus_refresh_token=${refreshToken}; path=/; max-age=604800; samesite=strict;`;
                             }
 
                             btn.innerHTML = "Success!";
                             setTimeout(() => (window.location.href = "/"), 300);
-                        } else {
-                            err.classList.remove("hidden");
-                            btn.innerHTML = "Sign In";
-                            btn.disabled = false;
-                            btn.classList.remove(
-                                "opacity-70",
-                                "cursor-not-allowed",
-                            );
                         }
                     } catch (error) {
                         err.innerHTML = "Koneksi ke server gagal.";
