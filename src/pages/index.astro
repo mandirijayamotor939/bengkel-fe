@@ -13,6 +13,15 @@ if (!token) {
 
 // 2. PASANG TOKEN KE AXIOS (Suntikkan agar api.get di bawah ini tidak ditolak)
 api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+let userName = "Pengguna";
+let userRole = "Kasir";
+try {
+    const userRes = await api.get("/users/me?fields=first_name,role.name");
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role?.name || "Kasir";
+} catch (error) {
+    console.error("Gagal menarik profil:", error);
+}
 
 // 1. MENDAPATKAN TANGGAL HARI INI (WIB)
 const now = new Date();
@@ -347,7 +356,7 @@ const formatTanggalWIB = (isoString) => {
 };
 ---
 
-<Layout title="Dashboard Utama">
+<Layout userRole={userRole} userName={userName} title="Dashboard Utama">
     {
         showOpenModal && (
             <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center px-4">

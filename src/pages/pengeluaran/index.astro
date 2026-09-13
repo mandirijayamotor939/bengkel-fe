@@ -4,6 +4,26 @@ import Layout from "../../layouts/Layout.astro";
 import { getWithAuth } from "../../lib/api";
 
 const token = Astro.cookies.get("directus_token")?.value || "";
+let userName = "Pengguna";
+let userRole = "Staff";
+
+try {
+    // 1. Tarik fields first_name DAN role.name sekaligus
+    const userRes = await getWithAuth("/users/me?fields=first_name,role.name", token);
+    
+    // 2. Simpan ke dalam variabel
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role.name;
+
+    const roleName = userRole.toLowerCase();
+
+    // 3. Blokir jika role adalah kasir
+    if (roleName === "kasir" || roleName === "cashier") {
+        return Astro.redirect("/"); 
+    }
+} catch (error) {
+    return Astro.redirect("/login");
+}
 let listPengeluaran = [];
 let isError = false;
 
@@ -57,7 +77,7 @@ const formatRp = (angka) =>
     }).format(angka || 0);
 ---
 
-<Layout title="Riwayat Pengeluaran">
+<Layout userRole={userRole} userName={userName} title="Riwayat Pengeluaran">
     <div class="max-w-7xl mx-auto px-4 py-8">
         {/* Header & Tombol Aksi */}
         <div

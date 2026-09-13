@@ -29,13 +29,23 @@ try {
     console.error("Gagal menarik data untuk kasir:", error);
     errorMessage = "Koneksi ke server bermasalah. Gagal memuat produk/mekanik.";
 }
+let userName = "Pengguna";
+let userRole = "Kasir";
+try {
+    const userRes = await api.get("/users/me?fields=first_name,role.name");
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role?.name || "Kasir";
+} catch (error) {
+    console.error("Gagal menarik profil:", error);
+}
 ---
 
-<Layout title="Mesin Kasir Bengkel">
+<Layout userRole={userRole} userName={userName} title="Mesin Kasir Bengkel">
     <div class="mb-6">
         <h2 class="text-2xl font-black text-slate-800 tracking-tight">
             Mesin Kasir / Transaksi Baru
         </h2>
+        <span id="data_kasir" style="display:none;">{userName}</span>
         <p class="text-slate-500 text-sm mt-1">
             Input penjualan sparepart, jasa servis mekanik, dan item ulakan luar
             toko.
@@ -60,6 +70,19 @@ try {
                 <i class="fa-solid fa-cart-plus text-indigo-600"></i> Pilih Jenis
                 Item
             </h3>
+            <div class="mt-4 pt-4 border-t border-slate-100">
+                <label
+                    class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                >
+                    Catatan Khusus Item Ini (Opsional)
+                </label>
+                <textarea
+                    id="keterangan_item"
+                    rows="2"
+                    placeholder="Contoh: Bawaan pelanggan, garansi 1 minggu..."
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                ></textarea>
+            </div>
 
             <div>
                 <label
@@ -90,6 +113,7 @@ try {
                         placeholder="🔍 Ketik nama barang..."
                         class="w-full bg-white border border-slate-200 rounded-t-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 mb-[-1px] z-10 relative"
                     />
+                    <!-- Bagian dropdown produk di src/pages/transaksi/baru.astro -->
                     <select
                         id="sparepart_select"
                         class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -100,7 +124,6 @@ try {
                                 <option
                                     value={p.id}
                                     data-nama={p.nama_produk}
-                                    data-modal={p.harga_modal || 0}
                                     data-jual={p.harga_jual || 0}
                                     data-stok={p.stok_qty || 0}
                                 >
@@ -246,20 +269,6 @@ try {
                 </div>
             </div>
 
-            <div class="mt-4 pt-4 border-t border-slate-100">
-                <label
-                    class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
-                >
-                    Catatan / Keterangan (Opsional)
-                </label>
-                <textarea
-                    id="keterangan_item"
-                    rows="2"
-                    placeholder="Contoh: Bawaan pelanggan, garansi 1 minggu..."
-                    class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                ></textarea>
-            </div>
-
             <button
                 id="btn_tambah_item"
                 class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2"
@@ -278,6 +287,18 @@ try {
                     <i class="fa-solid fa-receipt text-slate-700"></i> Ringkasan Nota
                     Belanja
                 </h3>
+                <div>
+                    <label
+                        class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                        >Info Pelanggan / Plat Motor (Opsional)</label
+                    >
+                    <input
+                        type="text"
+                        id="info_pelanggan"
+                        placeholder="Contoh: Budi - NMAX AB 1234 CD"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                </div>
             </div>
 
             <div class="overflow-x-auto min-h-[250px] p-4">
@@ -369,8 +390,42 @@ try {
             </div>
         </div>
     </div>
+    <!-- Modal Custom Uang Tunai -->
+    <div id="modal_uang" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+            <div class="bg-indigo-600 p-5 text-white">
+                <h3 class="font-bold text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-money-bill-wave"></i> Pembayaran Tunai (Cash)
+                </h3>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Tagihan</span>
+                    <h4 id="modal_total_tagihan" class="text-2xl font-black text-slate-800 tracking-tight mt-0.5">Rp 0</h4>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                        Jumlah Uang Diterima (Rp)
+                    </label>
+                    <input 
+                        type="number" 
+                        id="modal_input_uang" 
+                        placeholder="Masukkan nominal..." 
+                        class="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-lg font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                </div>
+                <div class="flex gap-2">
+                    <button id="modal_btn_batal" type="button" class="w-1/2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition text-sm">
+                        Batal
+                    </button>
+                    <button id="modal_btn_proses" type="button" class="w-1/2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition text-sm shadow-md">
+                        Proses & Cetak
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </Layout>
-
 <script is:inline>
     let keranjang = [];
 
@@ -426,7 +481,7 @@ try {
                 produk_id: el.value,
                 nama_item: selectedOpt.dataset.nama,
                 qty: qty,
-                harga_modal_snapshot: parseInt(selectedOpt.dataset.modal),
+                harga_modal_snapshot: 0, // Dikosongkan, server yang akan mengisi ini
                 harga_jual_snapshot: parseInt(selectedOpt.dataset.jual),
                 mekanik_ids: [],
                 persentase_komisi: 0,
@@ -581,28 +636,19 @@ try {
             btnSimpan.disabled = true;
 
             let totalHarga = 0;
-            let totalProfit = 0;
 
             keranjang.forEach((item) => {
                 const subtotal = item.harga_jual_snapshot * item.qty;
                 totalHarga += subtotal;
-
-                if (
-                    item.tipe_item === "sparepart" ||
-                    item.tipe_item === "ulakan"
-                ) {
-                    totalProfit +=
-                        (item.harga_jual_snapshot - item.harga_modal_snapshot) *
-                        item.qty;
-                } else if (item.tipe_item === "jasa") {
-                    totalProfit += subtotal - item.total_komisi_jasa;
-                }
             });
 
             const statusPembayaran =
                 document.getElementById("status_nota").value;
             const metodePembayaran =
                 document.getElementById("metode_pembayaran").value;
+            const infoPelanggan = document
+                .getElementById("info_pelanggan")
+                .value.trim();
 
             const now = new Date();
             const tzOffset = now.getTimezoneOffset() * 60000;
@@ -613,9 +659,10 @@ try {
             const payloadTransaksi = {
                 tanggal_transaksi: waktuSekarang,
                 total_harga: totalHarga,
-                total_profit: totalProfit,
+                // total_profit dihapus dari sini
                 status_nota: statusPembayaran,
                 metode_pembayaran: metodePembayaran,
+                info_pelanggan: infoPelanggan,
             };
 
             // Kumpulkan semua data dan tembak ke endpoint internal kita
@@ -637,10 +684,56 @@ try {
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(
-                        "Transaksi Berhasil Dicatat! Data Keuangan di Dashboard Otomatis Terupdate.",
-                    );
-                    window.location.href = "/";
+                    let uangDiterima = totalHarga;
+                    let kembalian = 0;
+
+// Fungsi pembantu untuk menyimpan data nota dan redirect ke halaman cetak
+                    const selesaikanDanRedirect = (uang, kembali) => {
+                        const dataNota = {
+                            kasir: document.getElementById("data_kasir")
+                                ? document.getElementById("data_kasir").innerText
+                                : "Kasir",
+                            waktu: waktuSekarang,
+                            status: statusPembayaran,
+                            metode: metodePembayaran,
+                            items: keranjang,
+                            totalHarga: totalHarga,
+                            uangDiterima: uang,
+                            kembalian: kembali,
+                        };
+                        localStorage.setItem("notaTerakhir", JSON.stringify(dataNota));
+                        window.location.href = "/transaksi/cetak";
+                    };
+
+                    if (metodePembayaran === "cash") {
+                        // Tampilkan modal custom pengganti prompt
+                        const modal = document.getElementById("modal_uang");
+                        const inputUang = document.getElementById("modal_input_uang");
+                        const totalTagihanText = document.getElementById("modal_total_tagihan");
+
+                        totalTagihanText.innerText = `Rp ${totalHarga.toLocaleString("id-ID")}`;
+                        inputUang.value = totalHarga;
+                        modal.classList.remove("hidden");
+                        inputUang.focus();
+
+                        // Listener Tombol Batal Modal
+                        document.getElementById("modal_btn_batal").onclick = () => {
+                            modal.classList.add("hidden");
+                            // Jika dibatalkan, tetap diarahkan ke cetak dengan nominal pas (tanpa kembalian)
+                            selesaikanDanRedirect(totalHarga, 0);
+                        };
+
+                        // Listener Tombol Proses Modal
+                        document.getElementById("modal_btn_proses").onclick = () => {
+                            const val = parseInt(inputUang.value) || totalHarga;
+                            const kembalianCalculated = val - totalHarga;
+                            modal.classList.add("hidden");
+                            selesaikanDanRedirect(val, kembalianCalculated);
+                        };
+                    } else {
+                        // Jika QRIS / Transfer, langsung selesaikan tanpa tampilkan modal
+                        selesaikanDanRedirect(totalHarga, 0);
+                    }
                 } else {
                     throw new Error(
                         result.message || "Gagal menyimpan ke server",

@@ -2,6 +2,19 @@
 import { getWithAuth } from "../../lib/api";
 
 const token = Astro.cookies.get("directus_token")?.value || "";
+try {
+    // Tarik data profil user saat ini dari Directus untuk mengecek rolenya
+    const userRes = await getWithAuth("/users/me?fields=role.name", token);
+    const roleName = userRes.data.data.role.name.toLowerCase();
+
+    // Jika role adalah kasir, batalkan proses dan lempar ke halaman utama
+    if (roleName === "kasir" || roleName === "cashier") {
+        return Astro.redirect("/"); // Bisa juga diubah ke "/transaksi/baru"
+    }
+} catch (error) {
+    // Jika sesi habis atau gagal cek user, lempar ke halaman login
+    return Astro.redirect("/login");
+}
 const start = Astro.url.searchParams.get("start") || "";
 const end = Astro.url.searchParams.get("end") || "";
 

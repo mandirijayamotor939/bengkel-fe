@@ -18,7 +18,7 @@ const config = { headers: { Authorization: `Bearer ${token}` } };
 
 try {
 // 2. Susun endpoint (Tambahkan relasi ke mekanik_id untuk menarik nama dan komisi per orang)
-    let endpoint = "/items/transaksi?limit=-1&fields=*,detail_transaksi.*,detail_transaksi.mekanik_id.*,detail_transaksi.mekanik_id.mekanik_id.nama_mekanik&sort=-tanggal_transaksi";
+    let endpoint = "/items/transaksi?limit=-1&fields=*,user_created.first_name,detail_transaksi.*,detail_transaksi.mekanik_id.*,detail_transaksi.mekanik_id.mekanik_id.nama_mekanik&sort=-tanggal_transaksi";
     let filterQuery = [];
     
     // Filter by Status
@@ -163,9 +163,19 @@ const formatRp = (angka: number) => {
         maximumFractionDigits: 0,
     }).format(Number(angka || 0));
 };
+
+let userName = "Pengguna";
+let userRole = "Kasir";
+try {
+    const userRes = await api.get("/users/me?fields=first_name,role.name");
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role?.name || "Kasir";
+} catch (error) {
+    console.error("Gagal menarik profil:", error);
+}
 ---
 
-<Layout title="Riwayat Transaksi">
+<Layout userRole={userRole} userName={userName} title="Riwayat Transaksi">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <!-- Filter / Searching Section -->
         <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
@@ -347,11 +357,14 @@ const formatRp = (angka: number) => {
                                         <!-- Info Nota -->
                                         <td class="p-4">
                                             <div class="font-black text-slate-700 text-lg mb-1">#{trx.id}</div>
-                                            <div class="text-xs text-slate-500 flex items-center gap-1">
-                                                <i class="fa-regular fa-calendar"></i> {formatTanggal(trx.tanggal_transaksi)}
+                                            <div class="text-xs text-slate-500 flex flex-col gap-1.5 mt-2">
+                                                <span><i class="fa-regular fa-calendar"></i> {formatTanggal(trx.tanggal_transaksi)}</span>
+                                                <span class="font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded w-max">
+                                                    <i class="fa-solid fa-user-tag"></i> Kasir: {trx.user_created?.first_name || 'Sistem / Admin'}
+                                                </span>
                                             </div>
                                         </td>
-
+                                        
                                         <!-- Rincian Item -->
                                         <td class="p-4">
                                             <div class="space-y-3">

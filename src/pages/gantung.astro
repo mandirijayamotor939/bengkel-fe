@@ -62,9 +62,18 @@ const formatTanggalWIB = (isoString) => {
         hour: "2-digit", minute: "2-digit"
     }).format(date) + " WIB";
 };
+let userName = "Pengguna";
+let userRole = "Kasir";
+try {
+    const userRes = await api.get("/users/me?fields=first_name,role.name");
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role?.name || "Kasir";
+} catch (error) {
+    console.error("Gagal menarik profil:", error);
+}
 ---
 
-<Layout title="Daftar Transaksi Gantung">
+<Layout userRole={userRole} userName={userName} title="Daftar Transaksi Gantung">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="mb-8">
             <h2 class="text-3xl font-black text-slate-800 tracking-tight">

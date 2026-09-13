@@ -8,9 +8,8 @@ export async function POST({ request, cookies }) {
         }
 
         const body = await request.json();
-        const { tanggal_pembelian, sumber_dana, items } = body;
+        const { tanggal_pembelian, sumber_dana, items, keterangan } = body;
 
-        // 1. Validasi Input
         if (!tanggal_pembelian || !sumber_dana || !items || items.length === 0) {
             return new Response(JSON.stringify({ 
                 success: false, 
@@ -52,9 +51,12 @@ export async function POST({ request, cookies }) {
         }
 
         // 5. Catat ke Pengeluaran (TANGKAP ID PENGELUARANNYA)
+        const teksKeterangan = keterangan 
+            ? `${keterangan} (Restok Grosir ${items.length} item - Nota #${pembelianId})`
+            : `Restok Grosir ${items.length} macam barang (Ref Nota: #${pembelianId})`;
         const resPengeluaran = await postWithAuth('/items/pengeluaran', {
             tanggal_pengeluaran: tanggal_pembelian,
-            keterangan: `Restok Grosir ${items.length} macam barang (Ref Nota: #${pembelianId})`,
+            keterangan: teksKeterangan,
             nominal: total_biaya,
             kategori: "restok",
             sumber_dana: sumber_dana

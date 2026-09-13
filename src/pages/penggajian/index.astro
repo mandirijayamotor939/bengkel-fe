@@ -3,7 +3,27 @@
 import Layout from "../../layouts/Layout.astro";
 import { getWithAuth } from "../../lib/api"; // <-- Ubah import
 
-const token = Astro.cookies.get("directus_token")?.value; // <-- Ambil token
+const token = Astro.cookies.get("directus_token")?.value || "";
+let userName = "Pengguna";
+let userRole = "Staff";
+
+try {
+    // 1. Tarik fields first_name DAN role.name sekaligus
+    const userRes = await getWithAuth("/users/me?fields=first_name,role.name", token);
+    
+    // 2. Simpan ke dalam variabel
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role.name;
+
+    const roleName = userRole.toLowerCase();
+
+    // 3. Blokir jika role adalah kasir
+    if (roleName === "kasir" || roleName === "cashier") {
+        return Astro.redirect("/"); 
+    }
+} catch (error) {
+    return Astro.redirect("/login");
+}
 
 let mekanikList = [];
 let isError = false;
@@ -42,7 +62,7 @@ const defaultMulai = formatWIB(tglAwalMinggu);
 const defaultSelesai = formatWIB(tglAkhirSabtu);
 ---
 
-<Layout title="Sistem Penggajian & Komisi">
+<Layout userRole={userRole} userName={userName} title="Sistem Penggajian & Komisi">
     <div class="max-w-6xl mx-auto px-4 py-8">
         {
             isError && (

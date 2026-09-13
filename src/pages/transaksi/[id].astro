@@ -1,19 +1,38 @@
 ---
 // src/pages/transaksi/[id].astro
 import Layout from "../../layouts/Layout.astro";
-import { api } from "../../lib/api";
+import { getWithAuth } from "../../lib/api"; // Ubah import ini
 
 const { id } = Astro.params;
 let transaksi = null;
 let rincianBarang = [];
 
-const token = Astro.cookies.get("directus_token")?.value;
-const config = { headers: { Authorization: `Bearer ${token}` } };
+const token = Astro.cookies.get("directus_token")?.value || "";
+
+let userName = "Pengguna";
+let userRole = "Staff";
 
 try {
-    // API dengan relasi yang sudah diperbaiki (melewati tabel jembatan M2M)
-    const resTrx = await api.get(
-        `/items/transaksi/${id}?fields=*,detail_transaksi.*,detail_transaksi.produk_id.nama_produk,detail_transaksi.mekanik_id.mekanik_id.nama_mekanik`, config
+    // Gunakan getWithAuth dengan parameter token
+    const userRes = await getWithAuth("/users/me?fields=first_name,role.name", token);
+    
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role.name;
+
+    const roleName = userRole.toLowerCase();
+
+    if (roleName === "kasir" || roleName === "cashier") {
+        return Astro.redirect("/"); 
+    }
+} catch (error) {
+    console.error("Gagal verifikasi Admin di [id].astro:", error.message);
+    return Astro.redirect("/login");
+}
+
+try {
+    // Gunakan getWithAuth untuk transaksi juga
+    const resTrx = await getWithAuth(
+        `/items/transaksi/${id}?fields=*,detail_transaksi.*,detail_transaksi.produk_id.nama_produk,detail_transaksi.mekanik_id.mekanik_id.nama_mekanik`, token
     );
     transaksi = resTrx.data.data;
     rincianBarang = transaksi?.detail_transaksi || [];
@@ -38,7 +57,7 @@ function formatTanggal(isoString) {
 }
 ---
 
-<Layout title={`Detail Transaksi #${id}`}>
+<Layout userRole={userRole} userName={userName} title={`Detail Transaksi #${id}`}>
     <div class="max-w-5xl mx-auto px-4 py-8">
         <div class="mb-6">
             <a

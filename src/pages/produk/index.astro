@@ -3,8 +3,28 @@
 import Layout from "../../layouts/Layout.astro";
 import { getWithAuth } from "../../lib/api";
 
-// 1. Ambil token & Deteksi Parameter URL
-const token = Astro.cookies.get("directus_token")?.value;
+const token = Astro.cookies.get("directus_token")?.value || "";
+let userName = "Pengguna";
+let userRole = "Staff";
+
+try {
+    // 1. Tarik fields first_name DAN role.name sekaligus
+    const userRes = await getWithAuth("/users/me?fields=first_name,role.name", token);
+    
+    // 2. Simpan ke dalam variabel
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role.name;
+
+    const roleName = userRole.toLowerCase();
+
+    // 3. Blokir jika role adalah kasir
+    if (roleName === "kasir" || roleName === "cashier") {
+        return Astro.redirect("/"); 
+    }
+} catch (error) {
+    return Astro.redirect("/login");
+}
+
 const page = parseInt(Astro.url.searchParams.get("page") || "1");
 const searchQuery = Astro.url.searchParams.get("q") || ""; // TAMBAHAN: Tangkap kata kunci
 const limit = 100;
@@ -41,7 +61,7 @@ const formatRp = (angka) =>
     }).format(angka || 0);
 ---
 
-<Layout title="Katalog Produk">
+<Layout userRole={userRole} userName={userName}  title="Katalog Produk">
     <div class="max-w-7xl mx-auto">
         {/* Header Section */}
         <div

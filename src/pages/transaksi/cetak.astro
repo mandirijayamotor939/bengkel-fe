@@ -1,0 +1,154 @@
+---
+// src/pages/transaksi/cetak.astro
+---
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nota Transaksi</title>
+    <!-- Library untuk download PDF otomatis -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            padding: 20px;
+            background-color: #f8fafc;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            width: 58mm; /* Ukuran presisi thermal 58mm */
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .line { border-bottom: 1px dashed #000; margin: 8px 0; }
+        .flex-between { display: flex; justify-content: space-between; }
+        
+        .btn {
+            display: block; width: 100%; padding: 10px;
+            text-align: center; text-decoration: none;
+            margin-bottom: 8px; border-radius: 6px;
+            font-family: sans-serif; font-weight: bold;
+            box-sizing: border-box; cursor: pointer; border: none; font-size: 12px;
+        }
+        .btn-download { background: #059669; color: white; }
+        .btn-back { background: #64748b; color: white; }
+
+        @media print {
+            body { background: white; padding: 0; }
+            .container { border: none; box-shadow: none; width: 100%; padding: 0; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Tombol Aksi -->
+        <div class="no-print">
+            <button id="btn-download" class="btn btn-download">📥 DOWNLOAD PDF (58mm)</button>
+            <a href="/transaksi/baru" class="btn btn-back">⬅️ Transaksi Baru</a>
+        </div>
+
+        <div id="area-nota">
+            <div class="center" style="margin-bottom: 10px;">
+                <h2 style="font-size: 14px; margin: 0;" class="bold">MANDIRI JAYA MOTOR</h2>
+                <p style="margin: 0; font-size: 9px;">Jl. Anggrek, Sambelegi Kidul<br>Maguwoharjo, Depok, Sleman, DIY</p>
+                <div class="line"></div>
+            </div>
+            
+            <div style="margin-bottom: 10px; font-size: 10px;">
+                <div class="flex-between"><span>Waktu:</span> <span id="waktu"></span></div>
+                <div class="flex-between"><span>Kasir:</span> <span id="kasir"></span></div>
+                <div class="flex-between"><span>Status:</span> <span id="status"></span></div>
+                <div class="line"></div>
+            </div>
+
+            <div id="items" style="margin-bottom: 10px; font-size: 10px;"></div>
+
+            <div style="border-top: 1px dashed #000; padding-top: 5px; font-size: 10px;">
+                <div class="flex-between"><span>Total Qty:</span> <span id="qty"></span></div>
+                <div class="flex-between bold" style="font-size: 11px; margin-top: 3px;"><span>GRAND TOTAL:</span> <span id="grandtotal"></span></div>
+                <div class="flex-between" style="margin-top: 5px;"><span>Metode:</span> <span id="metode"></span></div>
+                <div class="flex-between"><span>Dibayar:</span> <span id="dibayar"></span></div>
+                <div class="flex-between"><span>Kembali:</span> <span id="kembali"></span></div>
+            </div>
+
+            <div class="center" style="margin-top: 15px; font-size: 9px;">
+                <p style="margin: 0;">Terima kasih atas kunjungan Anda!</p>
+                <p style="margin: 0;">Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</p>
+            </div>
+        </div>
+    </div>
+
+    <script is:inline>
+        document.addEventListener("DOMContentLoaded", () => {
+            const dataRaw = localStorage.getItem("notaTerakhir");
+            if (!dataRaw) {
+                alert("Sesi nota tidak ditemukan.");
+                window.location.href = "/transaksi/baru";
+                return;
+            }
+
+            const data = JSON.parse(dataRaw);
+            
+            let waktuIndo = data.waktu;
+            try {
+                waktuIndo = new Intl.DateTimeFormat("id-ID", {
+                    timeZone: "Asia/Jakarta",
+                    year: "numeric", month: "short", day: "numeric",
+                    hour: "2-digit", minute: "2-digit"
+                }).format(new Date(data.waktu));
+            } catch (e) {}
+
+            document.getElementById("waktu").innerText = waktuIndo;
+            document.getElementById("kasir").innerText = data.kasir || "Kasir";
+            document.getElementById("status").innerText = (data.status || "").toUpperCase();
+            
+            let htmlItems = "";
+            let totalQty = 0;
+            if (Array.isArray(data.items)) {
+                data.items.forEach(item => {
+                    totalQty += item.qty;
+                    htmlItems += `
+                        <div style="margin-bottom: 4px;">
+                            <div>${item.nama_item}</div>
+                            <div class="flex-between">
+                                <span>${item.qty} x ${(item.harga_jual_snapshot || 0).toLocaleString("id-ID")}</span>
+                                <span>${((item.qty || 1) * (item.harga_jual_snapshot || 0)).toLocaleString("id-ID")}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            document.getElementById("items").innerHTML = htmlItems;
+            document.getElementById("qty").innerText = totalQty;
+            document.getElementById("grandtotal").innerText = `Rp ${(data.totalHarga || 0).toLocaleString("id-ID")}`;
+            document.getElementById("metode").innerText = (data.metode || "").toUpperCase();
+            document.getElementById("dibayar").innerText = `Rp ${(data.uangDiterima || 0).toLocaleString("id-ID")}`;
+            document.getElementById("kembali").innerText = `Rp ${(data.kembalian || 0).toLocaleString("id-ID")}`;
+
+            // Fitur Download PDF dengan settingan Presisi Kertas Kasir 58mm
+            document.getElementById("btn-download").addEventListener("click", () => {
+                const element = document.getElementById("area-nota");
+                const opt = {
+                    margin:       2,
+                    filename:     `Nota-${Date.now()}.pdf`,
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2 },
+                    jsPDF:        { unit: 'mm', format: [58, 150], orientation: 'portrait' } // Mengunci ukuran 58mm
+                };
+
+                html2pdf().set(opt).from(element).save();
+            });
+        });
+    </script>
+</body>
+</html>

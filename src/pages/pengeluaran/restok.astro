@@ -4,11 +4,37 @@ import Layout from "../../layouts/Layout.astro";
 import { getWithAuth } from "../../lib/api";
 
 const token = Astro.cookies.get("directus_token")?.value || "";
+let userName = "Pengguna";
+let userRole = "Staff";
+
+try {
+    // 1. Tarik fields first_name DAN role.name sekaligus
+    const userRes = await getWithAuth(
+        "/users/me?fields=first_name,role.name",
+        token,
+    );
+
+    // 2. Simpan ke dalam variabel
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role.name;
+
+    const roleName = userRole.toLowerCase();
+
+    // 3. Blokir jika role adalah kasir
+    if (roleName === "kasir" || roleName === "cashier") {
+        return Astro.redirect("/");
+    }
+} catch (error) {
+    return Astro.redirect("/login");
+}
 let listProduk = [];
 let isError = false;
 
 try {
-    const resProduk = await getWithAuth("/items/produk?sort=nama_produk&limit=-1", token);
+    const resProduk = await getWithAuth(
+        "/items/produk?sort=nama_produk&limit=-1",
+        token,
+    );
     listProduk = resProduk.data.data || [];
 } catch (error) {
     console.error("Gagal menarik data produk:", error.message);
@@ -19,40 +45,61 @@ const hariIni = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
     year: "numeric",
     month: "2-digit",
-    day: "2-digit"
+    day: "2-digit",
 }).format(new Date());
 ---
 
-<Layout title="Form Restok Barang Grosir">
+<Layout
+    userRole={userRole}
+    userName={userName}
+    title="Form Restok Barang Grosir"
+>
     <div class="max-w-6xl mx-auto px-4 py-8">
-        
         <div class="mb-6">
-            <a href="/produk" class="text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-2 text-sm transition">
+            <a
+                href="/produk"
+                class="text-slate-500 hover:text-slate-800 font-medium inline-flex items-center gap-2 text-sm transition"
+            >
                 <i class="fa-solid fa-arrow-left"></i> Kembali ke Katalog Produk
             </a>
         </div>
 
         <div class="mb-8">
-            <h1 class="text-3xl font-black text-slate-800 tracking-tight">Restok Barang Grosir</h1>
-            <p class="text-slate-500 mt-1">Catat nota belanja grosir dari supplier. Otomatis menaikkan stok fisik dan memperbarui harga di etalase.</p>
+            <h1 class="text-3xl font-black text-slate-800 tracking-tight">
+                Restok Barang Grosir
+            </h1>
+            <p class="text-slate-500 mt-1">
+                Catat nota belanja grosir dari supplier. Otomatis menaikkan stok
+                fisik dan memperbarui harga di etalase.
+            </p>
         </div>
 
-        {isError && (
-            <div class="bg-red-50 text-red-700 p-4 rounded-xl mb-6">
-                Terjadi kesalahan saat memuat data produk dari database.
-            </div>
-        )}
+        {
+            isError && (
+                <div class="bg-red-50 text-red-700 p-4 rounded-xl mb-6">
+                    Terjadi kesalahan saat memuat data produk dari database.
+                </div>
+            )
+        }
 
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div
+            class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden"
+        >
             <form id="formRestok" class="p-8">
-                
                 {/* Bagian Induk Nota & Sumber Dana */}
-                <div class="mb-8 pb-8 border-b border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div
+                    class="mb-8 pb-8 border-b border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6"
+                >
                     <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Tanggal Pembelian <span class="text-red-500">*</span></label>
-                        <input 
-                            type="date" 
-                            id="tanggalPembelian" 
+                        <label
+                            class="block text-sm font-bold text-slate-700 mb-2"
+                            >Tanggal Pembelian <span class="text-red-500"
+                                >*</span
+                            ></label
+                        >
+                        <input
+                            type="date"
+                            id="tanggalPembelian"
                             value={hariIni}
                             class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition"
                             required
@@ -60,24 +107,61 @@ const hariIni = new Intl.DateTimeFormat("en-CA", {
                     </div>
 
                     <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Sumber Dana Pembayaran <span class="text-red-500">*</span></label>
-                        <select id="sumberDana" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition font-semibold text-slate-800" required>
-                            <option value="transfer_bank" selected>Transfer Bank (M-Banking / Uang Luar Laci)</option>
-                            <option value="laci_kasir">Laci Kasir (Uang Cash Bengkel)</option>
+                        <label
+                            class="block text-sm font-bold text-slate-700 mb-2"
+                            >Sumber Dana Pembayaran <span class="text-red-500"
+                                >*</span
+                            ></label
+                        >
+                        <select
+                            id="sumberDana"
+                            class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition font-semibold text-slate-800"
+                            required
+                        >
+                            <option value="transfer_bank" selected
+                                >Transfer Bank (M-Banking / Uang Luar Laci)</option
+                            >
+                            <option value="laci_kasir"
+                                >Laci Kasir (Uang Cash Bengkel)</option
+                            >
                         </select>
-                        <p class="text-xs text-slate-400 mt-1">Pilih 'Laci Kasir' hanya jika uang dibayarkan langsung dari kas tunai toko.</p>
+                        <p class="text-xs text-slate-400 mt-1">
+                            Pilih 'Laci Kasir' hanya jika uang dibayarkan
+                            langsung dari kas tunai toko.
+                        </p>
+                    </div>
+                    <div class="md:col-span-2 mt-4">
+                        <label
+                            class="block text-sm font-bold text-slate-700 mb-2"
+                            >Supplier / Keterangan Pembelian</label
+                        >
+                        <input
+                            type="text"
+                            id="keteranganRestok"
+                            class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 focus:bg-white transition"
+                            placeholder="Contoh: Toko Makmur / Nota 12345"
+                        />
                     </div>
                 </div>
 
                 {/* Bagian Detail Barang */}
                 <div class="mb-4 flex justify-between items-center">
-                    <h2 class="text-lg font-black text-slate-800">Daftar Barang Masuk</h2>
-                    
+                    <h2 class="text-lg font-black text-slate-800">
+                        Daftar Barang Masuk
+                    </h2>
+
                     <div class="flex gap-3">
-                        <a href="/produk/baru" class="bg-slate-100 text-slate-700 hover:bg-slate-200 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+                        <a
+                            href="/produk/baru"
+                            class="bg-slate-100 text-slate-700 hover:bg-slate-200 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2"
+                        >
                             <i class="fa-solid fa-box-open"></i> Buat Produk Baru
                         </a>
-                        <button type="button" onclick="window.tambahBaris()" class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+                        <button
+                            type="button"
+                            onclick="window.tambahBaris()"
+                            class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2"
+                        >
                             <i class="fa-solid fa-plus"></i> Tambah Baris
                         </button>
                     </div>
@@ -85,113 +169,138 @@ const hariIni = new Intl.DateTimeFormat("en-CA", {
 
                 <div class="mb-8">
                     <table class="w-full text-left text-sm" id="tabelRestok">
-                        <thead class="bg-slate-50 text-xs uppercase font-black text-slate-500 border-y border-slate-200">
+                        <thead
+                            class="bg-slate-50 text-xs uppercase font-black text-slate-500 border-y border-slate-200"
+                        >
                             <tr>
                                 <th class="px-3 py-3 w-1/3">Nama Produk</th>
                                 <th class="px-3 py-3 w-20 text-center">Qty</th>
                                 <th class="px-3 py-3">Harga Modal Baru</th>
                                 <th class="px-3 py-3">Harga Jual Baru</th>
-                                <th class="px-3 py-3 text-right">Subtotal Modal</th>
+                                <th class="px-3 py-3 text-right"
+                                    >Subtotal Modal</th
+                                >
                                 <th class="px-3 py-3 text-center">Hapus</th>
                             </tr>
                         </thead>
-                        <tbody id="wadahBaris" class="divide-y divide-slate-100">
+                        <tbody
+                            id="wadahBaris"
+                            class="divide-y divide-slate-100"
+                        >
                             {/* Di-generate via Javascript */}
                         </tbody>
                         <tfoot class="bg-slate-50 border-y border-slate-200">
                             <tr>
-                                <td colspan="4" class="px-4 py-4 text-right font-black uppercase text-slate-600">Total Modal Restok:</td>
-                                <td colspan="2" class="px-4 py-4 text-right font-black text-2xl text-indigo-600" id="tampilanTotal">Rp 0</td>
+                                <td
+                                    colspan="4"
+                                    class="px-4 py-4 text-right font-black uppercase text-slate-600"
+                                    >Total Modal Restok:</td
+                                >
+                                <td
+                                    colspan="2"
+                                    class="px-4 py-4 text-right font-black text-2xl text-indigo-600"
+                                    id="tampilanTotal">Rp 0</td
+                                >
                             </tr>
                         </tfoot>
                     </table>
                 </div>
 
                 <div class="flex justify-end pt-4">
-                    <button type="submit" id="btnSimpan" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl font-black shadow-lg transition flex items-center gap-3 text-lg">
+                    <button
+                        type="submit"
+                        id="btnSimpan"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl font-black shadow-lg transition flex items-center gap-3 text-lg"
+                    >
                         <i class="fa-solid fa-check-circle"></i> Simpan Restok Grosir
                     </button>
                 </div>
-
             </form>
         </div>
     </div>
     <style is:inline>
-    /* Menyamakan bentuk kotak input dengan Tailwind (rounded-lg, border-slate-300) */
-    .ts-wrapper .ts-control {
-        padding: 0.5rem 0.75rem !important; 
-        border-radius: 0.5rem !important; 
-        border: 1px solid #cbd5e1 !important; 
-        font-size: 0.875rem !important; 
-        background-color: #ffffff !important;
-        box-shadow: none !important;
-        transition: all 0.2s ease-in-out;
-    }
+        /* Menyamakan bentuk kotak input dengan Tailwind (rounded-lg, border-slate-300) */
+        .ts-wrapper .ts-control {
+            padding: 0.5rem 0.75rem !important;
+            border-radius: 0.5rem !important;
+            border: 1px solid #cbd5e1 !important;
+            font-size: 0.875rem !important;
+            background-color: #ffffff !important;
+            box-shadow: none !important;
+            transition: all 0.2s ease-in-out;
+        }
 
-    .ts-wrapper.focus .ts-control {
-        border-color: #6366f1 !important; 
-        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important; 
-    }
-    
-    .ts-dropdown {
-        border-radius: 0.5rem !important;
-        border: 1px solid #cbd5e1 !important;
-        font-size: 0.875rem !important;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important; /* shadow-lg */
-        margin-top: 4px !important;
-        z-index: 50 !important;
-    }
+        .ts-wrapper.focus .ts-control {
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
+        }
 
-    .ts-dropdown .option {
-        padding: 0.5rem 0.75rem !important;
-        cursor: pointer;
-    }
+        .ts-dropdown {
+            border-radius: 0.5rem !important;
+            border: 1px solid #cbd5e1 !important;
+            font-size: 0.875rem !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important; /* shadow-lg */
+            margin-top: 4px !important;
+            z-index: 50 !important;
+        }
 
-    .ts-dropdown .option:hover,
-    .ts-dropdown .active {
-        background-color: #eef2ff !important; 
-        color: #4f46e5 !important; 
-        font-weight: 500;
-    }
-</style>
+        .ts-dropdown .option {
+            padding: 0.5rem 0.75rem !important;
+            cursor: pointer;
+        }
+
+        .ts-dropdown .option:hover,
+        .ts-dropdown .active {
+            background-color: #eef2ff !important;
+            color: #4f46e5 !important;
+            font-weight: 500;
+        }
+    </style>
 </Layout>
 
-<link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.default.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js" is:inline></script>
+<link
+    href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.default.min.css"
+    rel="stylesheet"
+/>
+<script
+    src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"
+    is:inline></script>
 
 <script is:inline define:vars={{ listProduk }}>
     function formatRupiah(angka) {
-        return new Intl.NumberFormat('id-ID').format(angka);
+        return new Intl.NumberFormat("id-ID").format(angka);
     }
 
-    window.hitungTotal = function() {
+    window.hitungTotal = function () {
         let totalRestok = 0;
-        const baris = document.querySelectorAll('.baris-item');
-        
-        baris.forEach(row => {
-            const qty = parseFloat(row.querySelector('.input-qty').value) || 0;
-            const hargaModal = parseFloat(row.querySelector('.input-modal').value) || 0;
-            
+        const baris = document.querySelectorAll(".baris-item");
+
+        baris.forEach((row) => {
+            const qty = parseFloat(row.querySelector(".input-qty").value) || 0;
+            const hargaModal =
+                parseFloat(row.querySelector(".input-modal").value) || 0;
+
             const subtotal = qty * hargaModal;
-            
-            row.querySelector('.teks-subtotal').innerText = 'Rp ' + formatRupiah(subtotal);
+
+            row.querySelector(".teks-subtotal").innerText =
+                "Rp " + formatRupiah(subtotal);
             totalRestok += subtotal;
         });
 
-        document.getElementById('tampilanTotal').innerText = `Rp ${formatRupiah(totalRestok)}`;
+        document.getElementById("tampilanTotal").innerText =
+            `Rp ${formatRupiah(totalRestok)}`;
     };
 
+    window.tambahBaris = function () {
+        const tbody = document.getElementById("wadahBaris");
 
-window.tambahBaris = function() {
-        const tbody = document.getElementById('wadahBaris');
-        
         // Kita tidak lagi butuh data-modal dan data-jual di HTML, karena akan ditarik langsung dari listProduk
-        const opsiProduk = listProduk.map(p => 
-            `<option value="${p.id}">${p.nama_produk}</option>`
-        ).join('');
+        const opsiProduk = listProduk
+            .map((p) => `<option value="${p.id}">${p.nama_produk}</option>`)
+            .join("");
 
-        const tr = document.createElement('tr');
-        tr.className = 'baris-item hover:bg-slate-50 transition';
+        const tr = document.createElement("tr");
+        tr.className = "baris-item hover:bg-slate-50 transition";
         tr.innerHTML = `
             <td class="px-3 py-3">
                 <select class="input-produk w-full" required placeholder="Cari nama barang...">
@@ -220,93 +329,106 @@ window.tambahBaris = function() {
         tbody.appendChild(tr);
 
         // Ubah elemen <select> biasa menjadi fitur pencarian otomatis
-        const selectEl = tr.querySelector('.input-produk');
+        const selectEl = tr.querySelector(".input-produk");
         new TomSelect(selectEl, {
-            create: false, 
+            create: false,
             sortField: { field: "text", direction: "asc" },
-            onChange: function(value) {
+            onChange: function (value) {
                 // Cari data produk berdasarkan ID yang diklik
-                const produk = listProduk.find(p => p.id == value);
+                const produk = listProduk.find((p) => p.id == value);
                 if (produk) {
-                    tr.querySelector('.input-modal').value = produk.harga_modal || 0;
-                    tr.querySelector('.input-jual').value = produk.harga_jual || 0;
+                    tr.querySelector(".input-modal").value =
+                        produk.harga_modal || 0;
+                    tr.querySelector(".input-jual").value =
+                        produk.harga_jual || 0;
                     window.hitungTotal();
                 }
-            }
+            },
         });
     };
 
-    window.hapusBaris = function(btn) {
-        btn.closest('tr').remove();
+    window.hapusBaris = function (btn) {
+        btn.closest("tr").remove();
         window.hitungTotal();
     };
 
     // Jalankan sekali saat halaman dimuat
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener("DOMContentLoaded", () => {
         window.tambahBaris();
     });
 
     // Proses Submit Form ke Backend API
-    document.getElementById('formRestok').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const tanggalPembelian = document.getElementById('tanggalPembelian').value;
-        const sumberDana = document.getElementById('sumberDana').value;
-        const barisItem = document.querySelectorAll('.baris-item');
-        const items = [];
+    document
+        .getElementById("formRestok")
+        .addEventListener("submit", async (e) => {
+            e.preventDefault();
 
-        barisItem.forEach(row => {
-            const produkId = row.querySelector('.input-produk').value;
-            const qty = parseInt(row.querySelector('.input-qty').value) || 0;
-            const hargaModal = parseInt(row.querySelector('.input-modal').value) || 0;
-            const hargaJual = parseInt(row.querySelector('.input-jual').value) || 0;
-            
-            if (produkId && qty > 0) {
-                items.push({
-                    produk_id: produkId,
-                    qty_masuk: qty,
-                    harga_modal_baru: hargaModal,
-                    harga_jual_baru: hargaJual
-                });
-            }
-        });
+            const tanggalPembelian =
+                document.getElementById("tanggalPembelian").value;
+            const sumberDana = document.getElementById("sumberDana").value;
+            const keterangan = document.getElementById("keteranganRestok").value;
+            const barisItem = document.querySelectorAll(".baris-item");
+            const items = [];
 
-        if (items.length === 0) {
-            alert("Harap pilih minimal 1 barang.");
-            return;
-        }
+            barisItem.forEach((row) => {
+                const produkId = row.querySelector(".input-produk").value;
+                const qty =
+                    parseInt(row.querySelector(".input-qty").value) || 0;
+                const hargaModal =
+                    parseInt(row.querySelector(".input-modal").value) || 0;
+                const hargaJual =
+                    parseInt(row.querySelector(".input-jual").value) || 0;
 
-        const btn = document.getElementById('btnSimpan');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Memproses Restok...`;
-        btn.disabled = true;
-
-        try {
-            const response = await fetch('/api/tambah-restok', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    tanggal_pembelian: tanggalPembelian,
-                    sumber_dana: sumberDana,
-                    items: items
-                })
+                if (produkId && qty > 0) {
+                    items.push({
+                        produk_id: produkId,
+                        qty_masuk: qty,
+                        harga_modal_baru: hargaModal,
+                        harga_jual_baru: hargaJual,
+                    });
+                }
             });
 
-            const result = await response.json();
+            if (items.length === 0) {
+                alert("Harap pilih minimal 1 barang.");
+                return;
+            }
 
-            if (result.success) {
-                alert("Sukses! " + result.message);
-                window.location.href = "/produk";
-            } else {
-                alert("Gagal: " + (result.message || "Terjadi kesalahan server."));
+            const btn = document.getElementById("btnSimpan");
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Memproses Restok...`;
+            btn.disabled = true;
+
+            try {
+                const response = await fetch("/api/tambah-restok", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        tanggal_pembelian: tanggalPembelian,
+                        sumber_dana: sumberDana,
+                        keterangan: keterangan,
+                        items: items,
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert("Sukses! " + result.message);
+                    window.location.href = "/produk";
+                } else {
+                    alert(
+                        "Gagal: " +
+                            (result.message || "Terjadi kesalahan server."),
+                    );
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                alert("Terjadi kesalahan jaringan/server.");
+                console.error(error);
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }
-        } catch (error) {
-            alert("Terjadi kesalahan jaringan/server.");
-            console.error(error);
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        }
-    });
+        });
 </script>

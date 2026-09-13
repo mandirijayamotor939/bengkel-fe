@@ -4,7 +4,27 @@ import Layout from "../../layouts/Layout.astro";
 import { getWithAuth } from "../../lib/api";
 
 // 1. Ambil token dari cookie Astro
-const token = Astro.cookies.get('directus_token')?.value || "";
+const token = Astro.cookies.get("directus_token")?.value || "";
+let userName = "Pengguna";
+let userRole = "Staff";
+
+try {
+    // 1. Tarik fields first_name DAN role.name sekaligus
+    const userRes = await getWithAuth("/users/me?fields=first_name,role.name", token);
+    
+    // 2. Simpan ke dalam variabel
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role.name;
+
+    const roleName = userRole.toLowerCase();
+
+    // 3. Blokir jika role adalah kasir
+    if (roleName === "kasir" || roleName === "cashier") {
+        return Astro.redirect("/"); 
+    }
+} catch (error) {
+    return Astro.redirect("/login");
+}
 
 let listMekanik = [];
 let listKasbon = [];
@@ -18,7 +38,7 @@ try {
     // 3. Tarik riwayat kasbon (urut dari yang paling baru) dan join nama mekaniknya dengan Auth Token
     const resKasbon = await getWithAuth(
         "/items/kasbon_mekanik?fields=*,mekanik_id.nama_mekanik&sort=-tanggal",
-        token
+        token,
     );
     listKasbon = resKasbon.data.data || [];
 } catch (error) {
@@ -31,7 +51,7 @@ const hariIni = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
     year: "numeric",
     month: "2-digit",
-    day: "2-digit"
+    day: "2-digit",
 }).format(new Date());
 const formatRp = (angka) =>
     new Intl.NumberFormat("id-ID", {
@@ -50,7 +70,7 @@ const formatTgl = (tgl) =>
     }).format(new Date(tgl));
 ---
 
-<Layout title="Manajemen Kasbon">
+<Layout userRole={userRole} userName={userName} title="Manajemen Kasbon">
     <div class="max-w-7xl mx-auto px-4 py-8">
         <div class="mb-8">
             <h1 class="text-3xl font-black text-slate-800">Manajemen Kasbon</h1>

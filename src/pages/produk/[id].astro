@@ -5,8 +5,27 @@ import { getWithAuth } from "../../lib/api";
 
 const { id } = Astro.params;
 
-// 1. Ambil token dari cookie
-const token = Astro.cookies.get("directus_token")?.value;
+const token = Astro.cookies.get("directus_token")?.value || "";
+let userName = "Pengguna";
+let userRole = "Staff";
+
+try {
+    // 1. Tarik fields first_name DAN role.name sekaligus
+    const userRes = await getWithAuth("/users/me?fields=first_name,role.name", token);
+    
+    // 2. Simpan ke dalam variabel
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role.name;
+
+    const roleName = userRole.toLowerCase();
+
+    // 3. Blokir jika role adalah kasir
+    if (roleName === "kasir" || roleName === "cashier") {
+        return Astro.redirect("/"); 
+    }
+} catch (error) {
+    return Astro.redirect("/login");
+}
 
 let produk = null;
 let errorMsg = null;
@@ -25,7 +44,7 @@ if (!produk && !errorMsg) {
 }
 ---
 
-<Layout title={`Edit Produk - ${produk?.nama_produk || 'Error'}`}>
+<Layout userRole={userRole} userName={userName} title={`Edit Produk - ${produk?.nama_produk || 'Error'}`}>
     <div class="max-w-3xl mx-auto px-4 py-8">
         
         {/* Navigasi Kembali */}

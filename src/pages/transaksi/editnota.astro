@@ -12,7 +12,27 @@ if (!trxId) {
 // ==========================================
 // 1. AMBIL TOKEN DAN BUAT CONFIG HEADER
 // ==========================================
-const token = Astro.cookies.get("directus_token")?.value;
+const token = Astro.cookies.get("directus_token")?.value || "";
+let userName = "Pengguna";
+let userRole = "Staff";
+
+try {
+    // 1. Tarik fields first_name DAN role.name sekaligus
+    const userRes = await getWithAuth("/users/me?fields=first_name,role.name", token);
+    
+    // 2. Simpan ke dalam variabel
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role.name;
+
+    const roleName = userRole.toLowerCase();
+
+    // 3. Blokir jika role adalah kasir
+    if (roleName === "kasir" || roleName === "cashier") {
+        return Astro.redirect("/"); 
+    }
+} catch (error) {
+    return Astro.redirect("/login");
+}
 const config = { headers: { Authorization: `Bearer ${token}` } };
 // ==========================================
 
@@ -105,7 +125,7 @@ const formatRp = (angka) => {
 };
 ---
 
-<Layout title={`Edit Nota #${trxId}`}>
+<Layout userRole={userRole} userName={userName} title={`Edit Nota #${trxId}`}>
     <div class="mb-6 flex items-center justify-between">
         <div>
             <h2 class="text-2xl font-black text-slate-800 tracking-tight">Edit Nota #{trxId}</h2>

@@ -1,9 +1,30 @@
 ---
 // src/pages/penggajian/mekanik.astro
 import Layout from "../../layouts/Layout.astro";
+import { getWithAuth } from "../../lib/api";
 import { postWithAuth } from "../../lib/api";
 
-const token = Astro.cookies.get("directus_token")?.value;
+const token = Astro.cookies.get("directus_token")?.value || "";
+let userName = "Pengguna";
+let userRole = "Staff";
+
+try {
+    // 1. Tarik fields first_name DAN role.name sekaligus
+    const userRes = await getWithAuth("/users/me?fields=first_name,role.name", token);
+    
+    // 2. Simpan ke dalam variabel
+    userName = userRes.data.data.first_name || "Pengguna";
+    userRole = userRes.data.data.role.name;
+
+    const roleName = userRole.toLowerCase();
+
+    // 3. Blokir jika role adalah kasir
+    if (roleName === "kasir" || roleName === "cashier") {
+        return Astro.redirect("/"); 
+    }
+} catch (error) {
+    return Astro.redirect("/login");
+}
 
 let errorMessage = "";
 
@@ -29,7 +50,7 @@ if (Astro.request.method === "POST") {
 }
 ---
 
-<Layout title="Tambah Data Mekanik">
+<Layout userRole={userRole} userName={userName} title="Tambah Data Mekanik">
     <div class="max-w-3xl mx-auto px-4 py-8">
         
         {/* Header Section */}
