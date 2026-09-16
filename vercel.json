@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api-directus/:path*",
+      "destination": "http://202.155.136.2:8055/:path*"
+    }
+  ]
+}
