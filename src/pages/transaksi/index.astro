@@ -143,11 +143,7 @@ listStatistik.forEach((stat: any) => {
 const formatTanggal = (isoString: string) => {
     if (!isoString) return "-";
     
-    // 1. Hapus huruf 'Z' di belakang jika kebetulan ada bawaan dari API
-    let cleanString = isoString.replace("Z", "");
-    
-    // 2. Paksa tempelkan +07:00 agar JS tahu ini adalah jam WIB
-    const date = new Date(`${cleanString}+07:00`);
+    const date = new Date(isoString);
     
     return new Intl.DateTimeFormat("id-ID", {
         timeZone: "Asia/Jakarta",

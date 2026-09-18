@@ -75,6 +75,16 @@ const formatRp = (angka) =>
         currency: "IDR",
         maximumFractionDigits: 0,
     }).format(angka || 0);
+
+const formatTgl = (tgl) => {
+    if (!tgl) return "-";
+    return new Intl.DateTimeFormat("id-ID", {
+        timeZone: "Asia/Jakarta",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    }).format(new Date(tgl));
+};
 ---
 
 <Layout userRole={userRole} userName={userName} title="Riwayat Pengeluaran">
@@ -540,7 +550,7 @@ const formatRp = (angka) =>
                                         data-terjual={p.modal_terjual || 0}
                                     >
                                         <td class="px-6 py-4 font-semibold text-slate-700 whitespace-nowrap">
-                                            {p.tanggal_pengeluaran}
+                                            {formatTgl(p.tanggal_pengeluaran)}
                                         </td>
                                         <td class="px-6 py-4 font-bold text-slate-800">
                                             {p.keterangan || "-"}

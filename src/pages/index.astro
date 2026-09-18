@@ -24,18 +24,12 @@ try {
 }
 
 // 1. MENDAPATKAN TANGGAL HARI INI (WIB)
-const now = new Date();
-const formatter = new Intl.DateTimeFormat("en-GB", {
+const todayStr = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-});
-const parts = formatter.formatToParts(now);
-const day = parts.find((p) => p.type === "day").value;
-const month = parts.find((p) => p.type === "month").value;
-const year = parts.find((p) => p.type === "year").value;
-const todayStr = `${year}-${month}-${day}`;
+}).format(new Date());
 
 let jumlahGantung = 0;
 try {

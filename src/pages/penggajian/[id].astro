@@ -133,19 +133,13 @@ const formatRp = (angka) =>
     
 const formatTgl = (tgl) => {
     if (!tgl) return "-";
-    
-    // Jika data berupa DateTime (mengandung 'T') dan belum memiliki info zona waktu, paksa tempelkan +07:00 (WIB)
-    let safeTgl = tgl;
-    if (tgl.includes('T') && !tgl.includes('Z') && !tgl.includes('+')) {
-        safeTgl = `${tgl}+07:00`;
-    }
 
     return new Intl.DateTimeFormat("id-ID", {
         timeZone: "Asia/Jakarta",
         day: "2-digit",
         month: "long",
         year: "numeric",
-    }).format(new Date(safeTgl)); 
+    }).format(new Date(tgl)); 
 };
 
 const rincianDeskripsi = `Total Komisi: ${formatRp(totalKomisi)} | Uang Makan: ${formatRp(totalUangMakan)} | Potongan Kasbon: ${formatRp(totalPotongan)} | THP: ${formatRp(thp)}`;

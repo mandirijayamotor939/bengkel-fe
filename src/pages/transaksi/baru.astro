@@ -652,10 +652,13 @@ try {
                 .value.trim();
 
             const now = new Date();
-            const tzOffset = now.getTimezoneOffset() * 60000;
-            const waktuSekarang = new Date(now.getTime() - tzOffset)
-                .toISOString()
-                .slice(0, -1);
+            // Memaksa format waktu selalu Asia/Jakarta (WIB) secara eksplisit
+            const formatter = new Intl.DateTimeFormat("sv-SE", {
+                timeZone: "Asia/Jakarta",
+                year: "numeric", month: "2-digit", day: "2-digit",
+                hour: "2-digit", minute: "2-digit", second: "2-digit"
+            });
+            const waktuSekarang = formatter.format(now).replace(" ", "T");
 
             const payloadTransaksi = {
                 tanggal_transaksi: waktuSekarang,
