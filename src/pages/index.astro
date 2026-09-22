@@ -429,6 +429,12 @@ const formatTanggalWIB = (isoString) => {
             </div>
 
             <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                <button
+                    onclick="document.getElementById('pengeluaranModal').classList.remove('hidden')"
+                    class="bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition shadow-sm flex items-center justify-center gap-2 border border-indigo-700"
+                >
+                    <i class="fa-solid fa-receipt"></i> Catat Pengeluaran
+                </button>
                 <form
                     method="GET"
                     class="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm w-full md:w-auto"
@@ -1077,4 +1083,127 @@ const formatTanggalWIB = (isoString) => {
             animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
     </style>
+    <!-- MODAL PENGELUARAN KASIR -->
+    <div
+        id="pengeluaranModal"
+        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center px-4"
+    >
+        <div
+            class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full relative animate-fade-in-up"
+        >
+            <button
+                onclick="document.getElementById('pengeluaranModal').classList.add('hidden')"
+                class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+            >
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <div
+                class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-5 text-2xl border-4 border-white shadow-sm"
+            >
+                <i class="fa-solid fa-receipt"></i>
+            </div>
+            <h2 class="text-xl font-black text-slate-800 mb-1 tracking-tight">
+                Catat Pengeluaran
+            </h2>
+            <p class="text-slate-500 mb-6 text-sm leading-relaxed">
+                Catat biaya operasional eksternal (contoh: air galon, listrik).
+            </p>
+
+            <form id="formPengeluaranCepat" class="flex flex-col gap-4">
+                <input
+                    type="hidden"
+                    id="tanggalPengeluaranModal"
+                    value={todayStr}
+                />
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1"
+                        >Nominal (Rp)</label
+                    >
+                    <input
+                        type="number"
+                        id="nominalPengeluaranModal"
+                        required
+                        min="1"
+                        class="w-full bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 transition"
+                        placeholder="Contoh: 50000"
+                    />
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1"
+                        >Keterangan / Beli Apa?</label
+                    >
+                    <input
+                        type="text"
+                        id="keteranganPengeluaranModal"
+                        required
+                        class="w-full bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-800 outline-none focus:border-indigo-500 transition"
+                        placeholder="Contoh: Beli 2 Galon Aqua"
+                    />
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1"
+                        >Sumber Dana</label
+                    >
+                    <select
+                        id="sumberDanaPengeluaranModal"
+                        class="w-full bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 transition"
+                        required
+                    >
+                        <option value="laci_kasir" selected
+                            >Laci Kasir (Cash Fisik)</option
+                        >
+                        <option value="transfer_bank"
+                            >Transfer Bank / M-Banking</option
+                        >
+                    </select>
+                </div>
+                <button
+                    type="submit"
+                    id="btnSubmitPengeluaran"
+                    class="mt-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-indigo-200 flex justify-center items-center gap-2"
+                >
+                    <span>Simpan Pengeluaran</span>
+                </button>
+            </form>
+        </div>
+    </div>
 </Layout>
+<script is:inline>
+    document.getElementById("formPengeluaranCepat")?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById("btnSubmitPengeluaran");
+        const originalText = btn.innerHTML;
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Menyimpan...';
+
+        try {
+            // Memanggil API yang sama dengan tambah-pengeluaran_5.js
+            const res = await fetch("/api/tambah-pengeluaran", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    tanggal_pengeluaran: document.getElementById("tanggalPengeluaranModal").value,
+                    keterangan: document.getElementById("keteranganPengeluaranModal").value,
+                    nominal: document.getElementById("nominalPengeluaranModal").value,
+                    sumber_dana: document.getElementById("sumberDanaPengeluaranModal").value,
+                    kategori: "operasional" // Default kategori operasional
+                }),
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                alert("Pengeluaran berhasil dicatat!");
+                window.location.reload(); // Refresh untuk update sisa uang laci
+            } else {
+                alert("Gagal: " + (data.message || "Terjadi kesalahan"));
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        } catch (err) {
+            alert("Terjadi kesalahan sistem.");
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    });
+</script>
