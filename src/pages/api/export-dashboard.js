@@ -21,8 +21,12 @@ export async function GET({ request, cookies }) {
     const url = new URL(request.url);
 
     // 2. Set default tanggal hari ini jika tidak ada parameter
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(new Date());
 
     const startDate = url.searchParams.get("start") || todayStr;
     const endDate = url.searchParams.get("end") || todayStr;

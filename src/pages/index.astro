@@ -266,7 +266,7 @@ try {
 
     try {
         const resPengeluaran = await api.get(
-            `/items/pengeluaran?limit=-1&filter[tanggal_pengeluaran][_gte]=${startDate}&filter[tanggal_pengeluaran][_lte]=${endDate}`,
+            `/items/pengeluaran?limit=-1&filter[tanggal_pengeluaran][_between]=[${startDate}T00:00:00,${endDate}T23:59:59]`,
         );
 
         const dataPengeluaran = resPengeluaran.data.data || [];
@@ -336,7 +336,13 @@ const formatRp = (angka) => {
 
 const formatTanggalWIB = (isoString) => {
     if (!isoString) return "-";
-    const date = new Date(isoString);
+    let dateStr = String(isoString);
+
+    if (!dateStr.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(dateStr)) {
+        dateStr += "+07:00";
+    }
+
+    const date = new Date(dateStr);
     return (
         new Intl.DateTimeFormat("id-ID", {
             timeZone: "Asia/Jakarta",
@@ -1169,41 +1175,63 @@ const formatTanggalWIB = (isoString) => {
     </div>
 </Layout>
 <script is:inline>
-    document.getElementById("formPengeluaranCepat")?.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const btn = document.getElementById("btnSubmitPengeluaran");
-        const originalText = btn.innerHTML;
-        
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Menyimpan...';
+    let isSubmittingPengeluaran = false;
 
-        try {
-            // Memanggil API yang sama dengan tambah-pengeluaran_5.js
-            const res = await fetch("/api/tambah-pengeluaran", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    tanggal_pengeluaran: document.getElementById("tanggalPengeluaranModal").value,
-                    keterangan: document.getElementById("keteranganPengeluaranModal").value,
-                    nominal: document.getElementById("nominalPengeluaranModal").value,
-                    sumber_dana: document.getElementById("sumberDanaPengeluaranModal").value,
-                    kategori: "operasional" // Default kategori operasional
-                }),
-            });
+    document
+        .getElementById("formPengeluaranCepat")
+        ?.addEventListener("submit", async (e) => {
+            e.preventDefault();
 
-            const data = await res.json();
-            if (data.success) {
-                alert("Pengeluaran berhasil dicatat!");
-                window.location.reload(); // Refresh untuk update sisa uang laci
-            } else {
-                alert("Gagal: " + (data.message || "Terjadi kesalahan"));
+            // Kunci eksekusi jika submit sedang berjalan
+            if (isSubmittingPengeluaran) return;
+            isSubmittingPengeluaran = true;
+
+            const btn = document.getElementById("btnSubmitPengeluaran");
+            const originalText = btn.innerHTML;
+
+            btn.disabled = true;
+            btn.classList.add("pointer-events-none", "opacity-50");
+            btn.innerHTML =
+                '<i class="fa-solid fa-spinner animate-spin"></i> Menyimpan...';
+
+            try {
+                const res = await fetch("/api/tambah-pengeluaran", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        tanggal_pengeluaran: document.getElementById(
+                            "tanggalPengeluaranModal",
+                        ).value,
+                        keterangan: document.getElementById(
+                            "keteranganPengeluaranModal",
+                        ).value,
+                        nominal: document.getElementById(
+                            "nominalPengeluaranModal",
+                        ).value,
+                        sumber_dana: document.getElementById(
+                            "sumberDanaPengeluaranModal",
+                        ).value,
+                        kategori: "operasional",
+                    }),
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    alert("Pengeluaran berhasil dicatat!");
+                    window.location.reload();
+                } else {
+                    alert("Gagal: " + (data.message || "Terjadi kesalahan"));
+                    btn.disabled = false;
+                    btn.classList.remove("pointer-events-none", "opacity-50");
+                    btn.innerHTML = originalText;
+                    isSubmittingPengeluaran = false;
+                }
+            } catch (err) {
+                alert("Terjadi kesalahan sistem.");
                 btn.disabled = false;
+                btn.classList.remove("pointer-events-none", "opacity-50");
                 btn.innerHTML = originalText;
+                isSubmittingPengeluaran = false;
             }
-        } catch (err) {
-            alert("Terjadi kesalahan sistem.");
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-        }
-    });
+        });
 </script>

@@ -72,7 +72,12 @@ export const POST = async ({ request, cookies }) => {
                 const resPengeluaran = await fetch(`${directusUrl}/items/pengeluaran`, {
                     method: "POST", headers: authHeaders,
                     body: JSON.stringify({
-                        tanggal_pengeluaran: waktuSekarang.split("T")[0],
+                        tanggal_pengeluaran: new Intl.DateTimeFormat("en-CA", {
+                            timeZone: "Asia/Jakarta",
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit"
+                        }).format(new Date(waktuSekarang)),
                         keterangan: `Beli Ulakan: ${item.nama_item} (Ref: #${newTransaksiId})`,
                         nominal: nominalPengeluaran,
                         kategori: "aset/ulakan",
