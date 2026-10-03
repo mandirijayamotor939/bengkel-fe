@@ -67,7 +67,7 @@ export const POST = async ({ request, cookies }) => {
 
             if (item.tipe_item === "ulakan") {
                 const nominalPengeluaran = item.harga_modal_snapshot * item.qty;
-                const sumberDana = metodePembayaran === "cash" ? "laci_kasir" : "transfer_bank";
+                const sumberDana = (metodePembayaran === "qris") ? "transfer_bank" : "laci_kasir";
 
                 const resPengeluaran = await fetch(`${directusUrl}/items/pengeluaran`, {
                     method: "POST", headers: authHeaders,

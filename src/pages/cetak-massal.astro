@@ -30,6 +30,26 @@ try {
     console.error("Gagal mengambil data cetak:", error);
 }
 
+let totalCash = 0;
+let totalQris = 0;
+let grandTotal = 0;
+let grandProfit = 0;
+
+listTransaksi.forEach((trx: any) => {
+    if (trx.status_nota === "lunas") {
+        if (trx.metode_pembayaran === "cash") {
+            totalCash += Number(trx.total_harga || 0);
+        } else if (trx.metode_pembayaran === "qris") {
+            totalQris += Number(trx.total_harga || 0);
+        } else if (trx.metode_pembayaran === "split") {
+            totalCash += Number(trx.nominal_cash || 0);
+            totalQris += Number(trx.nominal_qris || 0);
+        }
+        grandTotal += Number(trx.total_harga || 0);
+        grandProfit += Number(trx.total_profit || 0);
+    }
+});
+
 const formatTanggal = (isoString: string) => {
     if (!isoString) return "-";
     let cleanString = isoString.replace("Z", "");
@@ -74,6 +94,24 @@ const formatRp = (angka: number) => {
 
 <!-- AREA YANG AKAN DIJADIKAN PDF (VERSI KOMPAK) -->
     <div id="area-pdf" class="max-w-4xl mx-auto space-y-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                    <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Total Omzet</div>
+                    <div class="text-base font-black text-slate-800">{formatRp(grandTotal)}</div>
+                </div>
+                <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                    <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Omzet Cash (Digabung)</div>
+                    <div class="text-base font-black text-emerald-600">{formatRp(totalCash)}</div>
+                </div>
+                <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                    <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Omzet QRIS (Digabung)</div>
+                    <div class="text-base font-black text-blue-600">{formatRp(totalQris)}</div>
+                </div>
+                <div class="bg-white p-3 rounded-lg border border-indigo-200 shadow-sm bg-indigo-50">
+                    <div class="text-[10px] text-indigo-500 font-bold uppercase tracking-wider mb-1">Total Profit</div>
+                    <div class="text-base font-black text-indigo-700">{formatRp(grandProfit)}</div>
+                </div>
+            </div>
     {listTransaksi.map((trx: any) => (
         <div class="trx-card bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
                 
@@ -149,6 +187,14 @@ const formatRp = (angka: number) => {
                 <!-- FOOTER TOTAL (Kotak Hijau) -->
                 <div class="bg-white px-3 pb-3 flex justify-end">
                     <div class="w-full max-w-sm space-y-2">
+                        <div class="flex justify-between items-center text-slate-500 font-medium px-2 text-[10px] mb-1">
+                            <span>Metode Pembayaran:</span>
+                            <span class="font-bold text-slate-700 uppercase">
+                                {trx.metode_pembayaran === 'split' 
+                                    ? `SPLIT (Cash: ${formatRp(trx.nominal_cash)} | QRIS: ${formatRp(trx.nominal_qris)})` 
+                                    : trx.metode_pembayaran}
+                            </span>
+                        </div>
                         <div class="flex justify-between items-center text-slate-500 font-medium px-2 text-xs">
                             <span>Pendapatan Kotor:</span>
                             <span class="text-sm font-black text-slate-800">{formatRp(trx.total_harga)}</span>

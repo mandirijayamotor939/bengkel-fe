@@ -27,19 +27,16 @@ const isKasir = userRole?.toLowerCase() === "kasir";
   <body
     class="bg-[#F3F4F6] text-slate-800 font-sans h-screen flex overflow-hidden relative"
   >
-    <!-- 1. Tambahan Overlay (Latar gelap saat sidebar HP terbuka) -->
     <div
       id="sidebarOverlay"
       class="fixed inset-0 bg-slate-900/50 z-40 hidden md:hidden transition-opacity cursor-pointer"
     >
     </div>
 
-    <!-- 2. Ubah class aside menjadi fixed dan bisa di-slide -->
     <aside
       id="sidebar"
       class="w-64 bg-white border-r border-slate-200 flex-col fixed md:relative z-50 h-full -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out flex"
     >
-      <!-- 3. Tambah tombol close (silang) di samping logo untuk versi HP -->
       <div
         class="h-20 flex items-center justify-between px-6 md:px-8 border-b border-slate-100"
       >
@@ -71,6 +68,13 @@ const isKasir = userRole?.toLowerCase() === "kasir";
             <p class="text-[10px] font-medium text-slate-500 uppercase tracking-wider">{userRole || "Staff"}</p>
           </div>
         </div>
+
+        <!-- WIDGET JAM DAN TANGGAL -->
+        <div class="mb-4 bg-indigo-600 text-white rounded-xl p-3 shadow-md border border-indigo-500 flex flex-col items-center justify-center">
+          <span id="textJam" class="text-2xl font-black tracking-widest drop-shadow-sm">--:--</span>
+          <span id="textTanggal" class="text-[10px] font-medium uppercase tracking-wide text-indigo-100 mt-1">Memuat waktu...</span>
+        </div>
+
         <p
           class="px-4 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 mt-4"
         >
@@ -94,8 +98,6 @@ const isKasir = userRole?.toLowerCase() === "kasir";
         >
           <i class="fa-solid fa-receipt w-5"></i> Riwayat Transaksi
         </a>
-
-<!-- Menu Utama tetap sama -->
 
         {!isKasir && (
           <>
@@ -172,6 +174,7 @@ const isKasir = userRole?.toLowerCase() === "kasir";
         <slot />
       </div>
     </main>
+
     <!-- Modal Pop-Up Notifikasi Ganti Shift & Setor Uang -->
     <div id="modalShift" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[999] hidden flex items-center justify-center p-4">
       <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform transition-all">
@@ -210,6 +213,44 @@ const isKasir = userRole?.toLowerCase() === "kasir";
 </html>
 
 <script is:inline>
+  // --- LOGIKA JAM & TANGGAL WAKTU INDONESIA (WIB) ---
+  function updateWaktu() {
+    const now = new Date();
+    
+    // Format Jam ke Asia/Jakarta (WIB) tanpa detik
+    const formatterJam = new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    
+    // Format Tanggal
+    const formatterTanggal = new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const textJam = document.getElementById('textJam');
+    const textTanggal = document.getElementById('textTanggal');
+
+    if (textJam) {
+      // id-ID terkadang memakai titik (contoh 14.30), pastikan jadi titik dua (14:30)
+      textJam.innerText = formatterJam.format(now).replace('.', ':');
+    }
+    if (textTanggal) {
+      textTanggal.innerText = formatterTanggal.format(now);
+    }
+  }
+
+  // Update jam setiap menit agar efisien (tidak butuh detik)
+  setInterval(updateWaktu, 60000);
+  updateWaktu(); // Panggil saat pertama dimuat
+
+  // --- LOGIKA LOGOUT ---
   const btnLogout = document.getElementById("btnLogout");
 
   if (btnLogout) {
@@ -219,7 +260,6 @@ const isKasir = userRole?.toLowerCase() === "kasir";
       btnLogout.disabled = true;
       btnLogout.classList.add("opacity-70", "cursor-not-allowed");
 
-      // Hapus KEDUA Cookie: Access Token dan Refresh Token
       document.cookie =
         "directus_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
       document.cookie =
@@ -230,6 +270,8 @@ const isKasir = userRole?.toLowerCase() === "kasir";
       }, 300);
     });
   }
+
+  // --- LOGIKA SIDEBAR ---
   const sidebar = document.getElementById('sidebar');
   const sidebarOverlay = document.getElementById('sidebarOverlay');
   const btnOpenSidebar = document.getElementById('btnOpenSidebar');
@@ -242,8 +284,6 @@ const isKasir = userRole?.toLowerCase() === "kasir";
 
   if (btnOpenSidebar) btnOpenSidebar.addEventListener('click', toggleSidebar);
   if (btnCloseSidebar) btnCloseSidebar.addEventListener('click', toggleSidebar);
-  
-  // Tutup sidebar kalau area gelap (overlay) di luar sidebar diklik
   if (sidebarOverlay) sidebarOverlay.addEventListener('click', toggleSidebar);
 
   // --- LOGIKA POP-UP GANTI SHIFT (16.50 WIB) ---
@@ -257,25 +297,23 @@ const isKasir = userRole?.toLowerCase() === "kasir";
   }
 
   function cekWaktuShift() {
+    // Pastikan perhitungan jam notifikasi juga selaras dengan waktu Jakarta jika diinginkan ketepatan ekstra,
+    // tapi karena client dan VPS sama-sama di Indonesia, fungsi jam lokal browser cukup aman
     const now = new Date();
     const jam = now.getHours();
     const menit = now.getMinutes();
 
-    // Format tanggal hari ini (contoh: 2026-09-13) agar pop-up cukup muncul 1x sehari per jam 16.50
     const todayStr = now.toISOString().split("T")[0];
     const shiftKey = `shift_notif_done_${todayStr}`;
 
-    // Jika jam 16 dan menit 50 (16.50 WIB) dan belum pernah ditutup hari ini
     if (jam === 16 && menit >= 50 && !localStorage.getItem(shiftKey)) {
       if (modalShift && modalShift.classList.contains("hidden")) {
         modalShift.classList.remove("hidden");
-        // Catat di localStorage agar saat kasir pindah halaman pop-up tidak mengganggu lagi
         localStorage.setItem(shiftKey, "true");
       }
     }
   }
 
-  // Cek setiap 10 detik sekali
   setInterval(cekWaktuShift, 10000);
-  cekWaktuShift(); // Jalankan langsung saat halaman dibuka
+  cekWaktuShift(); 
 </script>

@@ -69,8 +69,15 @@ export async function GET({ request, cookies }) {
         const semuaTrx = resTrx.data.data || [];
 
         for (const trx of semuaTrx) {
-            if (trx.metode_pembayaran === "cash") omzetCash += Number(trx.total_harga || 0);
-            if (trx.metode_pembayaran === "qris") omzetQris += Number(trx.total_harga || 0);
+            if (trx.metode_pembayaran === "cash") {
+                omzetCash += Number(trx.total_harga || 0);
+            } else if (trx.metode_pembayaran === "qris") {
+                omzetQris += Number(trx.total_harga || 0);
+            } else if (trx.metode_pembayaran === "split") {
+                // Tangkap nilai split dari database
+                omzetCash += Number(trx.nominal_cash || 0);
+                omzetQris += Number(trx.nominal_qris || 0);
+            }
         }
 
         // 3. Tarik Detail Transaksi Lunas (Profit Produk & Jasa)

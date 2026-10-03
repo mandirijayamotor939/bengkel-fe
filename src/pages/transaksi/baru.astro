@@ -375,9 +375,19 @@ try {
                             class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
                         >
                             <option value="cash">💵 Uang Tunai (Cash)</option>
-                            <option value="qris">📱 QRIS / Transfer Bank</option
-                            >
+                            <option value="qris">📱 QRIS / Transfer Bank</option>
+                            <option value="split">💳💵 Split (Cash + QRIS)</option>
                         </select>
+                        <div id="form_split" class="hidden grid grid-cols-2 gap-3 mt-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase">Nominal Cash</label>
+                                <input type="number" id="split_cash" class="..." placeholder="0" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase">Nominal QRIS</label>
+                                <input type="number" id="split_qris" class="..." placeholder="0" />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -457,6 +467,16 @@ try {
         formSparepart.classList.toggle("hidden", val !== "sparepart");
         formJasa.classList.toggle("hidden", val !== "jasa");
         formUlakan.classList.toggle("hidden", val !== "ulakan");
+    });
+    const metodePembayaranSelect = document.getElementById("metode_pembayaran");
+    const formSplit = document.getElementById("form_split");
+
+    metodePembayaranSelect.addEventListener("change", () => {
+        if (metodePembayaranSelect.value === "split") {
+            formSplit.classList.remove("hidden");
+        } else {
+            formSplit.classList.add("hidden");
+        }
     });
 
     document.getElementById("btn_tambah_item").addEventListener("click", () => {
@@ -643,31 +663,42 @@ try {
                 totalHarga += subtotal;
             });
 
-            const statusPembayaran =
-                document.getElementById("status_nota").value;
-            const metodePembayaran =
-                document.getElementById("metode_pembayaran").value;
-            const infoPelanggan = document
-                .getElementById("info_pelanggan")
-                .value.trim();
+const statusPembayaran = document.getElementById("status_nota").value;
+const metodePembayaran = document.getElementById("metode_pembayaran").value;
+const infoPelanggan = document.getElementById("info_pelanggan").value.trim();
 
-            const now = new Date();
-            // Memaksa format waktu selalu Asia/Jakarta (WIB) secara eksplisit
-            const formatter = new Intl.DateTimeFormat("sv-SE", {
-                timeZone: "Asia/Jakarta",
-                year: "numeric", month: "2-digit", day: "2-digit",
-                hour: "2-digit", minute: "2-digit", second: "2-digit"
-            });
-            const waktuSekarang = formatter.format(now).replace(" ", "T");
+// TANGKAP DAN VALIDASI NOMINAL SPLIT
+let nominalCash = 0;
+let nominalQris = 0;
 
-            const payloadTransaksi = {
-                tanggal_transaksi: waktuSekarang,
-                total_harga: totalHarga,
-                // total_profit dihapus dari sini
-                status_nota: statusPembayaran,
-                metode_pembayaran: metodePembayaran,
-                info_pelanggan: infoPelanggan,
-            };
+if (metodePembayaran === "split") {
+    nominalCash = parseInt(document.getElementById("split_cash").value) || 0;
+    nominalQris = parseInt(document.getElementById("split_qris").value) || 0;
+    
+    // Cegah simpan jika total split lebih kecil dari total belanja
+    if (nominalCash + nominalQris < totalHarga) {
+        return alert("Total pembayaran split masih kurang dari tagihan!");
+    }
+}
+
+const now = new Date();
+const formatter = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit"
+});
+const waktuSekarang = formatter.format(now).replace(" ", "T");
+
+const payloadTransaksi = {
+    tanggal_transaksi: waktuSekarang,
+    total_harga: totalHarga,
+    status_nota: statusPembayaran,
+    metode_pembayaran: metodePembayaran,
+    info_pelanggan: infoPelanggan,
+    // MASUKKAN DATA NOMINAL CASH DAN QRIS KE PAYLOAD
+    nominal_cash: metodePembayaran === 'split' ? nominalCash : (metodePembayaran === 'cash' ? totalHarga : 0),
+    nominal_qris: metodePembayaran === 'split' ? nominalQris : (metodePembayaran === 'qris' ? totalHarga : 0),
+};
 
             // Kumpulkan semua data dan tembak ke endpoint internal kita
             const payloadLengkap = {
@@ -704,6 +735,8 @@ try {
                             totalHarga: totalHarga,
                             uangDiterima: uang,
                             kembalian: kembali,
+                            nominal_cash: metodePembayaran === 'split' ? nominalCash : (metodePembayaran === 'cash' ? totalHarga : 0),
+                            nominal_qris: metodePembayaran === 'split' ? nominalQris : (metodePembayaran === 'qris' ? totalHarga : 0),
                         };
                         localStorage.setItem("notaTerakhir", JSON.stringify(dataNota));
                         window.location.href = "/transaksi/cetak";

@@ -74,12 +74,16 @@ if (Astro.request.method === "POST") {
                     // 1. Tarik Omzet Cash hari tersebut
                     let lastOmzetCash = 0;
                     const resTrx = await api.get(
-                        `/items/transaksi?limit=-1&filter[tanggal_transaksi][_between]=[${lastDate}T00:00:00,${lastDate}T23:59:59]&filter[status_nota][_eq]=lunas&filter[metode_pembayaran][_eq]=cash`,
+                        `/items/transaksi?limit=-1&filter[tanggal_transaksi][_between]=[${lastDate}T00:00:00,${lastDate}T23:59:59]&filter[status_nota][_eq]=lunas`,
                     );
                     for (const trx of resTrx.data.data || []) {
-                        lastOmzetCash += Number(trx.total_harga || 0);
+                        // Cek masing-masing metode pembayaran
+                        if (trx.metode_pembayaran === "cash") {
+                            lastOmzetCash += Number(trx.total_harga || 0);
+                        } else if (trx.metode_pembayaran === "split") {
+                            lastOmzetCash += Number(trx.nominal_cash || 0); // Hanya ambil bagian cash-nya saja
+                        }
                     }
-
                     // 2. Tarik Pengeluaran Cash hari tersebut
                     let lastKeluarCash = 0;
                     const resOut = await api.get(
@@ -204,9 +208,12 @@ try {
         if (trx.status_nota === "lunas") {
             if (trx.metode_pembayaran === "cash") {
                 omzetCash += Number(trx.total_harga || 0);
-            }
-            if (trx.metode_pembayaran === "qris") {
+            } else if (trx.metode_pembayaran === "qris") {
                 omzetQris += Number(trx.total_harga || 0);
+            } else if (trx.metode_pembayaran === "split") {
+                // Pecah omzet berdasarkan field nominal yang dikirim dari kasir
+                omzetCash += Number(trx.nominal_cash || 0);
+                omzetQris += Number(trx.nominal_qris || 0);
             }
         }
     }

@@ -217,9 +217,18 @@
                 document.getElementById("qty").innerText = totalQty;
                 document.getElementById("grandtotal").innerText =
                     `Rp ${(data.totalHarga || 0).toLocaleString("id-ID")}`;
-                document.getElementById("metode").innerText = (
-                    data.metode || ""
-                ).toUpperCase();
+                if (data.metode === "split") {
+                    document.getElementById("metode").innerHTML = `
+                        <div style="text-align: right;">
+                            SPLIT<br>
+                            <span style="font-size: 9px; font-weight: normal;">
+                                (Cash: ${(data.nominal_cash || 0).toLocaleString("id-ID")} | QRIS: ${(data.nominal_qris || 0).toLocaleString("id-ID")})
+                            </span>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById("metode").innerText = (data.metode || "").toUpperCase();
+                }
                 document.getElementById("dibayar").innerText =
                     `Rp ${(data.uangDiterima || 0).toLocaleString("id-ID")}`;
                 document.getElementById("kembali").innerText =
