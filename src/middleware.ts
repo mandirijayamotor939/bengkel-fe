@@ -26,10 +26,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
                 const data = await res.json();
                 token = data.data.access_token;
 
-                cookies.set("directus_token", token, { path: "/", maxAge: 1800 });
-                
+                const TEN_YEARS = 315360000;
+
+                cookies.set("directus_token", token, { path: "/", maxAge: TEN_YEARS });
+
                 if (data.data.refresh_token) {
-                    cookies.set("directus_refresh_token", data.data.refresh_token, { path: "/", maxAge: 604800 }); 
+                    cookies.set("directus_refresh_token", data.data.refresh_token, { path: "/", maxAge: TEN_YEARS });
                 }
             } else {
                 cookies.delete("directus_token", { path: '/' });
@@ -48,12 +50,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
     // 3. Proteksi Endpoint API
     if (url.pathname.startsWith('/api/') && !token) {
-        return new Response(JSON.stringify({ 
-            success: false, 
-            message: "Akses API ditolak: Sesi habis atau belum login." 
-        }), { 
-            status: 401, 
-            headers: { 'Content-Type': 'application/json' } 
+        return new Response(JSON.stringify({
+            success: false,
+            message: "Akses API ditolak: Sesi habis atau belum login."
+        }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
         });
     }
 

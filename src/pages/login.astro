@@ -174,16 +174,19 @@ if (token) {
                                     profileData.data?.role?.name?.toLowerCase() ||
                                     "";
 
+                                // Buat variabel durasi 10 tahun (dalam satuan detik)
+                                const TEN_YEARS = 315360000;
+
                                 // Simpan Role ke Cookie agar dibaca Middleware
-                                document.cookie = `user_role=${roleName}; path=/; max-age=604800; samesite=strict;`;
+                                document.cookie = `user_role=${roleName}; path=/; max-age=${TEN_YEARS}; samesite=strict;`;
                             } catch (err) {
                                 console.error("Gagal menarik role:", err);
                             }
 
-                            document.cookie = `directus_token=${token}; path=/; max-age=1740; samesite=strict;`;
+                            document.cookie = `directus_token=${token}; path=/; max-age=${TEN_YEARS}; samesite=strict;`;
 
                             if (refreshToken) {
-                                document.cookie = `directus_refresh_token=${refreshToken}; path=/; max-age=604800; samesite=strict;`;
+                                document.cookie = `directus_refresh_token=${refreshToken}; path=/; max-age=${TEN_YEARS}; samesite=strict;`;
                             }
 
                             btn.innerHTML = "Success!";
