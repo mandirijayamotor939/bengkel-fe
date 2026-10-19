@@ -159,6 +159,9 @@ if (token) {
                             const token = data.data.access_token;
                             const refreshToken = data.data.refresh_token;
 
+                            // 1. PINDAHKAN TEN_YEARS KE SINI agar bisa dibaca oleh seluruh baris cookie di bawahnya
+                            const TEN_YEARS = 315360000;
+
                             // Tarik data profil untuk mendapatkan nama role
                             try {
                                 const profileRes = await fetch(
@@ -174,19 +177,17 @@ if (token) {
                                     profileData.data?.role?.name?.toLowerCase() ||
                                     "";
 
-                                // Buat variabel durasi 10 tahun (dalam satuan detik)
-                                const TEN_YEARS = 315360000;
-
                                 // Simpan Role ke Cookie agar dibaca Middleware
-                                document.cookie = `user_role=${roleName}; path=/; max-age=${TEN_YEARS}; samesite=strict;`;
+                                document.cookie = `user_role=${roleName}; path=/; max-age=${TEN_YEARS}; SameSite=Lax;`;
                             } catch (err) {
                                 console.error("Gagal menarik role:", err);
                             }
 
-                            document.cookie = `directus_token=${token}; path=/; max-age=${TEN_YEARS}; samesite=strict;`;
+                            // 2. Sekarang TEN_YEARS di sini dibaca dengan aman tanpa error
+                            document.cookie = `directus_token=${token}; path=/; max-age=${TEN_YEARS}; SameSite=Lax;`;
 
                             if (refreshToken) {
-                                document.cookie = `directus_refresh_token=${refreshToken}; path=/; max-age=${TEN_YEARS}; samesite=strict;`;
+                                document.cookie = `directus_refresh_token=${refreshToken}; path=/; max-age=${TEN_YEARS}; SameSite=Lax;`;
                             }
 
                             btn.innerHTML = "Success!";
